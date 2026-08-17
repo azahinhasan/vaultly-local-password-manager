@@ -4,15 +4,15 @@ import { useThemeColors } from "@/hooks/use-theme-colors";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 export default function PinSetupScreen() {
   const { setupPin } = useAuth();
@@ -102,16 +102,12 @@ export default function PinSetupScreen() {
           />
         )}
 
-        {!!error && (
-          <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
+        {isSaving && (
+          <ActivityIndicator style={styles.spinner} color={colors.accent} />
         )}
 
-        {stage === "confirm" && (
-          <Pressable onPress={reset} style={styles.backButton}>
-            <Text style={[styles.backButtonText, { color: colors.accent }]}>
-              Start over
-            </Text>
-          </Pressable>
+        {!!error && (
+          <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -138,11 +134,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 8,
   },
+  spinner: {
+    marginTop: 8,
+  },
   error: {
     marginTop: 12,
   },
-  backButton: {
-    marginTop: 20,
-  },
-  backButtonText: {},
 });

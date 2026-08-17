@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 type Stage = "current" | "create" | "confirm";
 

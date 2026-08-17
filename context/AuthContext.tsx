@@ -78,8 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setupPin = async (pin: string) => {
     try {
-      if (pin.length < 4) {
-        throw new Error("PIN must be at least 4 digits");
+      if (pin.length < 6) {
+        throw new Error("PIN must be at least 6 digits");
       }
 
       // Generate salt
@@ -186,8 +186,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Current PIN is incorrect." };
       }
 
-      if (newPin.length < 4) {
-        return { success: false, error: "PIN must be at least 4 digits." };
+      if (newPin.length < 6) {
+        return { success: false, error: "PIN must be at least 6 digits." };
       }
 
       // Decrypt under the current key, then re-encrypt under a freshly
