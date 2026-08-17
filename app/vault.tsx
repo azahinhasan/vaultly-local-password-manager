@@ -1,7 +1,15 @@
+import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { PlatformSelect } from "@/components/PlatformSelect";
 import { PLATFORMS } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import {
+  exportVaultDecrypted,
+  exportVaultEncrypted,
+  parseDecryptedImport,
+  parseEncryptedImport,
+  pickJsonFileContent,
+} from "@/utils/vault-export";
 import {
   loadEncryptedVault,
   saveEncryptedVault,
@@ -13,7 +21,6 @@ import { Redirect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -39,6 +46,12 @@ export default function VaultScreen() {
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [platformFilter, setPlatformFilter] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message?: string;
+    options: AppDialogOption[];
+  } | null>(null);
+  const closeDialog = () => setDialog(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,18 +91,17 @@ export default function VaultScreen() {
   };
 
   const confirmDelete = (entry: VaultEntry) => {
-    Alert.alert(
-      "Delete entry?",
-      `This will permanently delete "${entry.platform}".`,
-      [
-        { text: "Cancel", style: "cancel" },
+    setDialog({
+      title: "Delete entry?",
+      message: `This will permanently delete "${entry.platform}".`,
+      options: [
         {
-          text: "Delete",
-          style: "destructive",
+          label: "Delete",
+          destructive: true,
           onPress: () => deleteEntry(entry.id),
         },
       ],
-    );
+    });
   };
 
   const deleteEntry = async (id: string) => {
@@ -107,20 +119,108 @@ export default function VaultScreen() {
     }
   };
 
+  const runExport = async (isEncrypted: boolean) => {
+    if (!entries) {
+      return;
+    }
+
+    try {
+      if (isEncrypted) {
+        await exportVaultEncrypted(entries, vaultKey);
+      } else {
+        await exportVaultDecrypted(entries);
+      }
+    } catch (e) {
+      setDialog({
+        title: "Export failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+    }
+  };
+
+  const handleExport = () => {
+    if (!entries || entries.length === 0) {
+      setDialog({
+        title: "Nothing to export",
+        message: "Your vault is empty.",
+        options: [{ label: "OK" }],
+      });
+      return;
+    }
+
+    setDialog({
+      title: "Export Vault",
+      message:
+        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords. Encrypted exports stay protected, and can only be restored under this same PIN.",
+      options: [
+        { label: "Decrypted", onPress: () => runExport(false) },
+        { label: "Encrypted", onPress: () => runExport(true) },
+      ],
+    });
+  };
+
+  const runImport = async (isEncrypted: boolean) => {
+    try {
+      const content = await pickJsonFileContent();
+      if (content === null) {
+        return;
+      }
+
+      const imported = isEncrypted
+        ? await parseEncryptedImport(content, vaultKey)
+        : parseDecryptedImport(content);
+
+      const updated = [...(entries ?? []), ...imported];
+      await saveEncryptedVault(updated, vaultKey);
+      setEntries(updated);
+      setDialog({
+        title: "Import complete",
+        message: `Added ${imported.length} ${imported.length === 1 ? "entry" : "entries"}.`,
+        options: [{ label: "OK" }],
+      });
+    } catch (e) {
+      setDialog({
+        title: "Import failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+    }
+  };
+
+  const handleImport = () => {
+    setDialog({
+      title: "Import Vault",
+      message: "What format is the JSON file you're importing?",
+      options: [
+        { label: "Decrypted", onPress: () => runImport(false) },
+        { label: "Encrypted", onPress: () => runImport(true) },
+      ],
+    });
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Your Vault</Text>
-        <Pressable
-          onPress={() =>
-            router.push({ pathname: "/entry/[id]", params: { id: "new" } })
-          }
-          hitSlop={12}
-        >
-          <Ionicons name="add-circle" size={30} color={colors.accent} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={handleImport} hitSlop={12}>
+            <Ionicons name="download-outline" size={24} color={colors.accent} />
+          </Pressable>
+          <Pressable onPress={handleExport} hitSlop={12}>
+            <Ionicons name="share-outline" size={24} color={colors.accent} />
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              router.push({ pathname: "/entry/[id]", params: { id: "new" } })
+            }
+            hitSlop={12}
+          >
+            <Ionicons name="add-circle" size={30} color={colors.accent} />
+          </Pressable>
+        </View>
       </View>
 
       {entries !== null && entries.length > 0 && (
@@ -185,6 +285,14 @@ export default function VaultScreen() {
           )}
         />
       )}
+
+      <AppDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ""}
+        message={dialog?.message}
+        options={dialog?.options ?? []}
+        onDismiss={closeDialog}
+      />
     </SafeAreaView>
   );
 }
@@ -200,6 +308,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 8,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
   },
   title: {
     fontSize: 22,

@@ -4,9 +4,9 @@ import { useThemeColors } from "@/hooks/use-theme-colors";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
 } from "react-native";
@@ -49,20 +49,17 @@ export default function PinUnlockScreen() {
   }, [lockedUntil]);
 
   const isLocked = remainingSeconds > 0;
-  const canSubmit = pin.length === PIN_LENGTH && !isChecking && !isLocked;
 
-  const handleChange = (value: string) => {
+  const handleChange = async (value: string) => {
     setPin(value);
     setError("");
-  };
 
-  const handleUnlock = async () => {
-    if (!canSubmit) {
+    if (value.length !== PIN_LENGTH) {
       return;
     }
 
     setIsChecking(true);
-    const result = await unlockWithPin(pin);
+    const result = await unlockWithPin(value);
     setIsChecking(false);
 
     if (result.success) {
@@ -93,9 +90,17 @@ export default function PinUnlockScreen() {
           length={PIN_LENGTH}
           value={pin}
           onChangeText={handleChange}
-          autoFocus={!isLocked}
+          autoFocus={!isLocked && !isChecking}
           editable={!isChecking && !isLocked}
         />
+
+        {isChecking && (
+          <ActivityIndicator
+            style={styles.spinner}
+            color={colors.accent}
+          />
+        )}
+
         {isLocked ? (
           <Text style={[styles.error, { color: colors.error }]}>
             Too many attempts. Try again in {remainingSeconds}s.
@@ -107,22 +112,6 @@ export default function PinUnlockScreen() {
             </Text>
           )
         )}
-
-        <Pressable
-          onPress={handleUnlock}
-          disabled={!canSubmit}
-          style={[
-            styles.unlockButton,
-            {
-              backgroundColor: colors.accent,
-              opacity: canSubmit ? 1 : 0.5,
-            },
-          ]}
-        >
-          <Text style={styles.unlockButtonText}>
-            {isChecking ? "Checking..." : "Unlock"}
-          </Text>
-        </Pressable>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -144,20 +133,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
   },
+  spinner: {
+    marginTop: 8,
+  },
   error: {
     marginTop: 12,
     textAlign: "center",
-  },
-  unlockButton: {
-    marginTop: 20,
-    width: 200,
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  unlockButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

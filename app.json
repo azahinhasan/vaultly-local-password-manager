@@ -4,7 +4,7 @@
     "slug": "password-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/lock.png",
     "scheme": "passwordmanagermobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,17 +13,16 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FDEEE3",
+        "foregroundImage": "./assets/images/lock.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.azahinhasan.passwordmanagermobile"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/lock.png"
     },
     "plugins": [
       "expo-router",
@@ -44,6 +43,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cba802ba-e836-40b8-b9c2-3b28a0606751"
+      }
+    },
+    "owner": "azahinhasan"
   }
 }
