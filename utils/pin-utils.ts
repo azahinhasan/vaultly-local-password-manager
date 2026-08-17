@@ -1,8 +1,11 @@
-import { hexToBytes } from "@noble/ciphers/utils.js";
+import { bytesToHex } from "@noble/ciphers/utils.js";
+import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 import * as Crypto from "expo-crypto";
 
 const PBKDF2_ITERATIONS = 10000;
 const SALT_LENGTH = 16;
+const KEY_LENGTH = 32;
 
 // Consecutive failed PIN attempts allowed before a lockout delay kicks in,
 // followed by the escalating delay (seconds) for each attempt beyond that.
@@ -12,54 +15,31 @@ const LOCKOUT_SCHEDULE_SECONDS = [5, 15, 30, 60, 120];
 /**
  * Generate a random salt for PIN hashing
  */
-export async function generateSalt(): Promise<string> {
-  const randomBytes = await Crypto.getRandomBytes(SALT_LENGTH);
-  return Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    randomBytes.toString(),
-  );
+export function generateSalt(): string {
+  return bytesToHex(Crypto.getRandomBytes(SALT_LENGTH));
 }
 
 /**
- * Derive a key from PIN and salt using PBKDF2
- * Note: For a production app, consider using native modules for PBKDF2
- * This implementation uses SHA256 as a workaround
+ * Derive a 256-bit key from a PIN and salt using real PBKDF2-HMAC-SHA256.
+ * Runs synchronously in JS (no native bridge crossings), unlike a naive
+ * "hash N times" loop, so this is both correct and fast.
  */
-export async function deriveKeyFromPin(
-  pin: string,
-  salt: string,
-): Promise<string> {
-  let hash = pin + salt;
-
-  // Simple PBKDF2-like iteration using SHA256
-  for (let i = 0; i < PBKDF2_ITERATIONS; i++) {
-    hash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      hash,
-    );
-  }
-
-  return hash;
+export function deriveKeyFromPin(pin: string, salt: string): Uint8Array {
+  return pbkdf2(sha256, pin, salt, { c: PBKDF2_ITERATIONS, dkLen: KEY_LENGTH });
 }
 
 /**
  * Hash a PIN with salt for storage
  */
-export async function hashPin(pin: string, salt: string): Promise<string> {
-  const key = await deriveKeyFromPin(pin, salt);
-  return key;
+export function hashPin(pin: string, salt: string): string {
+  return bytesToHex(deriveKeyFromPin(pin, salt));
 }
 
 /**
  * Verify a PIN against a stored hash
  */
-export async function verifyPin(
-  pin: string,
-  salt: string,
-  storedHash: string,
-): Promise<boolean> {
-  const computedHash = await hashPin(pin, salt);
-  return computedHash === storedHash;
+export function verifyPin(pin: string, salt: string, storedHash: string): boolean {
+  return hashPin(pin, salt) === storedHash;
 }
 
 /**
@@ -67,12 +47,8 @@ export async function verifyPin(
  * Domain-separated from `hashPin` (adds a ":vault" suffix) so the stored PIN
  * verification hash and the vault encryption key are never the same value.
  */
-export async function deriveVaultKey(
-  pin: string,
-  salt: string,
-): Promise<Uint8Array> {
-  const hex = await deriveKeyFromPin(pin, `${salt}:vault`);
-  return hexToBytes(hex);
+export function deriveVaultKey(pin: string, salt: string): Uint8Array {
+  return deriveKeyFromPin(pin, `${salt}:vault`);
 }
 
 /**

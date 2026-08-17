@@ -76,17 +76,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Generate salt
-      const salt = await generateSalt();
+      const salt = generateSalt();
 
       // Hash the PIN
-      const hash = await hashPin(pin, salt);
+      const hash = hashPin(pin, salt);
 
       // Store hash and salt in secure storage
       await SecureStore.setItemAsync("pinHash", hash);
       await SecureStore.setItemAsync("pinSalt", salt);
 
       // Derive the vault encryption key and seed an empty encrypted vault
-      const key = await deriveVaultKey(pin, salt);
+      const key = deriveVaultKey(pin, salt);
       await saveEncryptedVault([], key);
 
       setVaultKey(key);
@@ -112,10 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("PIN not set up");
       }
 
-      const isValid = await verifyPin(pin, pinSalt, pinHash);
+      const isValid = verifyPin(pin, pinSalt, pinHash);
 
       if (isValid) {
-        const key = await deriveVaultKey(pin, pinSalt);
+        const key = deriveVaultKey(pin, pinSalt);
         setVaultKey(key);
         setIsAuthenticated(true);
         setFailedAttempts(0);
