@@ -60,6 +60,8 @@ export function NeoBrutalCard({
 const styles = StyleSheet.create({
   wrapper: {
     position: "relative",
+    marginRight: SHADOW_OFFSET,
+    marginBottom: SHADOW_OFFSET,
   },
   shadow: {
     position: "absolute",

@@ -1,6 +1,14 @@
 // Fixed set of platform choices for the Add/Edit Entry form.
 // Extend this list as more platforms are supported.
-export const PLATFORMS = ["Google", "Facebook", "Microsoft", "Ubisoft"];
+export const PLATFORMS = [
+  "Google",
+  "Facebook",
+  "Microsoft",
+  "Ubisoft",
+  "Steam",
+  "EA",
+  "Sony",
+];
 
 // Color tag for each fixed platform, shown as a dot on vault list cards.
 export const PLATFORM_COLORS: Record<string, string> = {
@@ -8,6 +16,9 @@ export const PLATFORM_COLORS: Record<string, string> = {
   Facebook: "#6366F1",
   Microsoft: "#16A34A",
   Ubisoft: "#F97316",
+  Steam: "#6e7a95",
+  EA: "#F5F5F5",
+  Sony: "#003791",
 };
 
 // Fallback color for entries with no assigned color (custom platforms
@@ -30,7 +41,10 @@ export const COLOR_PALETTE = [
 
 /** The color dot to show for an entry: fixed platforms always use their
  * assigned color; custom platforms use their chosen color, or the default. */
-export function getPlatformColor(platform: string, customColor?: string): string {
+export function getPlatformColor(
+  platform: string,
+  customColor?: string,
+): string {
   const fixedColor = PLATFORM_COLORS[platform];
   if (fixedColor) {
     return fixedColor;

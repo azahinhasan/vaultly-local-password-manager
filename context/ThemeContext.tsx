@@ -37,7 +37,7 @@ function isThemeMode(value: string): value is ThemeMode {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>("system");
+  const [mode, setModeState] = useState<ThemeMode>("warm");
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((stored) => {

@@ -87,7 +87,7 @@ export default function VaultScreen() {
   const confirmDelete = (entry: VaultEntry) => {
     setDialog({
       title: "Delete entry?",
-      message: `This will permanently delete "${entry.platform}".`,
+      message: `This will permanently delete the entry.`,
       options: [
         {
           label: "Delete",

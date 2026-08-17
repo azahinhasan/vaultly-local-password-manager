@@ -7,6 +7,10 @@ interface NeoBrutalButtonProps {
   onPress: () => void;
   disabled?: boolean;
   variant?: "accent" | "surface" | "error";
+  /** Overrides the variant's fill color, e.g. to pin a button to a fixed
+   * color regardless of the active theme's accent. */
+  color?: string;
+  textColor?: string;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -15,22 +19,26 @@ export function NeoBrutalButton({
   onPress,
   disabled,
   variant = "accent",
+  color,
+  textColor,
   style,
 }: NeoBrutalButtonProps) {
   const colors = useThemeColors();
 
   const fill =
-    variant === "accent"
+    color ??
+    (variant === "accent"
       ? colors.accent
       : variant === "error"
         ? colors.error
-        : colors.surface;
-  const textColor =
-    variant === "accent"
+        : colors.surface);
+  const resolvedTextColor =
+    textColor ??
+    (variant === "accent"
       ? colors.accentText
       : variant === "error"
         ? colors.errorText
-        : colors.text;
+        : colors.text);
 
   return (
     <View style={[styles.wrapper, style]}>
@@ -57,7 +65,7 @@ export function NeoBrutalButton({
           },
         ]}
       >
-        <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+        <Text style={[styles.label, { color: resolvedTextColor }]}>{label}</Text>
       </Pressable>
     </View>
   );
@@ -66,6 +74,8 @@ export function NeoBrutalButton({
 const styles = StyleSheet.create({
   wrapper: {
     position: "relative",
+    marginRight: SHADOW_OFFSET,
+    marginBottom: SHADOW_OFFSET,
   },
   shadow: {
     position: "absolute",

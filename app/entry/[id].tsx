@@ -1,3 +1,4 @@
+import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { PlatformSelect } from "@/components/PlatformSelect";
@@ -45,6 +46,13 @@ export default function EntryFormScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message?: string;
+    options: AppDialogOption[];
+  } | null>(null);
+  const closeDialog = () => setDialog(null);
 
   useEffect(() => {
     if (!vaultKey) {
@@ -122,6 +130,31 @@ export default function EntryFormScreen() {
       setError("Failed to save entry.");
       setIsSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!entries) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const updated = entries.filter((entry) => entry.id !== id);
+
+    try {
+      await saveEncryptedVault(updated, vaultKey);
+      router.back();
+    } catch {
+      setError("Failed to delete entry.");
+      setIsDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    setDialog({
+      title: "Delete entry?",
+      message: `This will permanently delete the entry.`,
+      options: [{ label: "Delete", destructive: true, onPress: handleDelete }],
+    });
   };
 
   if (notFound) {
@@ -233,9 +266,7 @@ export default function EntryFormScreen() {
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Username
-            </Text>
+            <Text style={[styles.label, { color: colors.text }]}>Username</Text>
             <TextInput
               style={[
                 styles.input,
@@ -254,9 +285,7 @@ export default function EntryFormScreen() {
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Password
-            </Text>
+            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[
@@ -313,19 +342,36 @@ export default function EntryFormScreen() {
           </View>
 
           {!!error && (
-            <Text style={[styles.error, { color: colors.error }]}>
-              {error}
-            </Text>
+            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )}
 
           <NeoBrutalButton
             label={isSaving ? "Saving..." : "Save"}
             onPress={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
+            color="#2847b8"
+            textColor="#FFFFFF"
             style={styles.saveButton}
           />
+
+          {!isNew && (
+            <NeoBrutalButton
+              label={isDeleting ? "Deleting..." : "Delete"}
+              onPress={confirmDelete}
+              disabled={isSaving || isDeleting}
+              variant="error"
+            />
+          )}
         </View>
       </KeyboardAvoidingView>
+
+      <AppDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ""}
+        message={dialog?.message}
+        options={dialog?.options ?? []}
+        onDismiss={closeDialog}
+      />
     </SafeAreaView>
   );
 }
