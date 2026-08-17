@@ -13,6 +13,7 @@ export interface VaultEntry {
   platform: string;
   username: string;
   password: string;
+  notes?: string;
 }
 
 interface EncryptedVault {

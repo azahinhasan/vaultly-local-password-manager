@@ -1,3 +1,5 @@
+import { PlatformSelect } from "@/components/PlatformSelect";
+import { PLATFORMS } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
@@ -32,8 +34,10 @@ export default function EntryFormScreen() {
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [platform, setPlatform] = useState("");
+  const [isCustomPlatform, setIsCustomPlatform] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -50,8 +54,10 @@ export default function EntryFormScreen() {
           const existing = vault.find((entry) => entry.id === id);
           if (existing) {
             setPlatform(existing.platform);
+            setIsCustomPlatform(!PLATFORMS.includes(existing.platform));
             setUsername(existing.username);
             setPassword(existing.password);
+            setNotes(existing.notes ?? "");
           } else {
             setNotFound(true);
           }
@@ -69,31 +75,34 @@ export default function EntryFormScreen() {
       return;
     }
 
-    if (!platform.trim() || !username.trim() || !password) {
-      setError("All fields are required.");
+    if (!platform || !username.trim() || !password) {
+      setError("Platform, username, and password are required.");
       return;
     }
 
     setError("");
     setIsSaving(true);
 
+    const trimmedNotes = notes.trim();
     const updated: VaultEntry[] = isNew
       ? [
           ...entries,
           {
             id: Crypto.randomUUID(),
-            platform: platform.trim(),
+            platform,
             username: username.trim(),
             password,
+            ...(trimmedNotes ? { notes: trimmedNotes } : {}),
           },
         ]
       : entries.map((entry) =>
           entry.id === id
             ? {
                 ...entry,
-                platform: platform.trim(),
+                platform,
                 username: username.trim(),
                 password,
+                notes: trimmedNotes || undefined,
               }
             : entry,
         );
@@ -150,100 +159,139 @@ export default function EntryFormScreen() {
         style={styles.inner}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-      <Pressable onPress={() => router.back()} style={styles.cancelButton}>
-        <Text style={[styles.cancelText, { color: colors.accent }]}>
-          Cancel
+        <Pressable onPress={() => router.back()} style={styles.cancelButton}>
+          <Text style={[styles.cancelText, { color: colors.accent }]}>
+            Cancel
+          </Text>
+        </Pressable>
+
+        <Text style={[styles.title, { color: colors.text }]}>
+          {isNew ? "Add Entry" : "Edit Entry"}
         </Text>
-      </Pressable>
 
-      <Text style={[styles.title, { color: colors.text }]}>
-        {isNew ? "Add Entry" : "Edit Entry"}
-      </Text>
+        <View style={styles.form}>
+          <View>
+            <View style={styles.platformHeader}>
+              <Text style={[styles.label, { color: colors.subtext }]}>
+                Platform
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setIsCustomPlatform((v) => !v);
+                  setPlatform("");
+                }}
+              >
+                <Text style={[styles.link, { color: colors.accent }]}>
+                  {isCustomPlatform ? "Choose from list" : "Enter manually"}
+                </Text>
+              </Pressable>
+            </View>
+            {isCustomPlatform ? (
+              <TextInput
+                style={[
+                  styles.input,
+                  { color: colors.text, borderColor: colors.border },
+                ]}
+                value={platform}
+                onChangeText={setPlatform}
+                placeholder="e.g. Steam"
+                placeholderTextColor={colors.subtext}
+                autoCapitalize="words"
+              />
+            ) : (
+              <PlatformSelect
+                value={platform}
+                onChange={setPlatform}
+                options={PLATFORMS}
+              />
+            )}
+          </View>
 
-      <View style={styles.form}>
-        <View>
-          <Text style={[styles.label, { color: colors.subtext }]}>
-            Platform
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              { color: colors.text, borderColor: colors.border },
-            ]}
-            value={platform}
-            onChangeText={setPlatform}
-            placeholder="e.g. GitHub"
-            placeholderTextColor={colors.subtext}
-            autoCapitalize="words"
-          />
-        </View>
-
-        <View>
-          <Text style={[styles.label, { color: colors.subtext }]}>
-            Username
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              { color: colors.text, borderColor: colors.border },
-            ]}
-            value={username}
-            onChangeText={setUsername}
-            placeholder="username or email"
-            placeholderTextColor={colors.subtext}
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View>
-          <Text style={[styles.label, { color: colors.subtext }]}>
-            Password
-          </Text>
-          <View style={styles.passwordRow}>
+          <View>
+            <Text style={[styles.label, { color: colors.subtext }]}>
+              Username
+            </Text>
             <TextInput
               style={[
                 styles.input,
-                styles.passwordInput,
                 { color: colors.text, borderColor: colors.border },
               ]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="password"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Username or Email"
               placeholderTextColor={colors.subtext}
-              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
-            <Pressable
-              onPress={() => setShowPassword((v) => !v)}
-              style={styles.eyeButton}
-              hitSlop={12}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color={colors.subtext}
-              />
-            </Pressable>
           </View>
+
+          <View>
+            <Text style={[styles.label, { color: colors.subtext }]}>
+              Password
+            </Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  { color: colors.text, borderColor: colors.border },
+                ]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor={colors.subtext}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                style={styles.eyeButton}
+                hitSlop={12}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={colors.subtext}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <View>
+            <Text style={[styles.label, { color: colors.subtext }]}>
+              Notes (optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                styles.notesInput,
+                { color: colors.text, borderColor: colors.border },
+              ]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Add any extra details"
+              placeholderTextColor={colors.subtext}
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+
+          {!!error && (
+            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
+          )}
+
+          <Pressable
+            onPress={handleSave}
+            disabled={isSaving}
+            style={[
+              styles.saveButton,
+              { backgroundColor: colors.accent, opacity: isSaving ? 0.6 : 1 },
+            ]}
+          >
+            <Text style={styles.saveButtonText}>
+              {isSaving ? "Saving..." : "Save"}
+            </Text>
+          </Pressable>
         </View>
-
-        {!!error && (
-          <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-        )}
-
-        <Pressable
-          onPress={handleSave}
-          disabled={isSaving}
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.accent, opacity: isSaving ? 0.6 : 1 },
-          ]}
-        >
-          <Text style={styles.saveButtonText}>
-            {isSaving ? "Saving..." : "Save"}
-          </Text>
-        </Pressable>
-      </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -280,6 +328,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 6,
   },
+  platformHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  link: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
   input: {
     borderWidth: 1,
     borderRadius: 8,
@@ -297,6 +355,9 @@ const styles = StyleSheet.create({
   eyeButton: {
     position: "absolute",
     right: 12,
+  },
+  notesInput: {
+    minHeight: 80,
   },
   error: {
     fontSize: 13,

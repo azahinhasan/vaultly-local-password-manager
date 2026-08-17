@@ -8,6 +8,7 @@ export const Colors = {
     dot: "#333333",
     accent: "#2563eb",
     error: "#c0392b",
+    card: "#f5f5f7",
   },
   dark: {
     background: "#000000",
@@ -18,6 +19,7 @@ export const Colors = {
     dot: "#e5e5e5",
     accent: "#5b9bff",
     error: "#ff6b5e",
+    card: "#1c1c1e",
   },
 };
 

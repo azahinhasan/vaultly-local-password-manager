@@ -1,3 +1,5 @@
+import { PlatformSelect } from "@/components/PlatformSelect";
+import { PLATFORMS } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
@@ -8,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Redirect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +22,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const ALL_PLATFORMS_OPTION = "All";
+const OTHER_PLATFORMS_OPTION = "Other";
+const FILTER_OPTIONS = [
+  ALL_PLATFORMS_OPTION,
+  ...PLATFORMS,
+  OTHER_PLATFORMS_OPTION,
+];
+
 export default function VaultScreen() {
   const { vaultKey } = useAuth();
   const router = useRouter();
@@ -28,6 +38,7 @@ export default function VaultScreen() {
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [platformFilter, setPlatformFilter] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,6 +51,19 @@ export default function VaultScreen() {
         .catch(() => setError("Failed to decrypt vault."));
     }, [vaultKey]),
   );
+
+  const filteredEntries = useMemo(() => {
+    if (!entries) {
+      return entries;
+    }
+    if (!platformFilter) {
+      return entries;
+    }
+    if (platformFilter === OTHER_PLATFORMS_OPTION) {
+      return entries.filter((entry) => !PLATFORMS.includes(entry.platform));
+    }
+    return entries.filter((entry) => entry.platform === platformFilter);
+  }, [entries, platformFilter]);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -90,12 +114,24 @@ export default function VaultScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Your Vault</Text>
         <Pressable
-          onPress={() => router.push({ pathname: "/entry/[id]", params: { id: "new" } })}
+          onPress={() =>
+            router.push({ pathname: "/entry/[id]", params: { id: "new" } })
+          }
           hitSlop={12}
         >
           <Ionicons name="add-circle" size={30} color={colors.accent} />
         </Pressable>
       </View>
+
+      {entries !== null && entries.length > 0 && (
+        <PlatformSelect
+          value={platformFilter ?? ALL_PLATFORMS_OPTION}
+          onChange={(value) =>
+            setPlatformFilter(value === ALL_PLATFORMS_OPTION ? null : value)
+          }
+          options={FILTER_OPTIONS}
+        />
+      )}
 
       {error ? (
         <Text style={[styles.message, { color: colors.error }]}>{error}</Text>
@@ -105,21 +141,22 @@ export default function VaultScreen() {
         <Text style={[styles.message, { color: colors.subtext }]}>
           No entries yet
         </Text>
+      ) : filteredEntries && filteredEntries.length === 0 ? (
+        <Text style={[styles.message, { color: colors.subtext }]}>
+          No entries for {platformFilter}
+        </Text>
       ) : (
         <FlatList
-          data={entries}
+          data={filteredEntries ?? []}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => (
-            <View style={[styles.separator, { backgroundColor: colors.border }]} />
-          )}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => openEntry(item.id)}
               onLongPress={() => confirmDelete(item)}
-              style={styles.row}
+              style={[styles.card, { backgroundColor: colors.card }]}
             >
-              <View style={styles.rowText}>
+              <View style={styles.cardText}>
                 <Text style={[styles.platform, { color: colors.text }]}>
                   {item.platform}
                 </Text>
@@ -173,18 +210,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   list: {
-    gap: 0,
+    gap: 12,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-  },
-  row: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
+    borderRadius: 12,
+    padding: 16,
   },
-  rowText: {
+  cardText: {
     flex: 1,
     gap: 2,
   },
