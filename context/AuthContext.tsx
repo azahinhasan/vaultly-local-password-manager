@@ -13,11 +13,16 @@ import {
     hashPin,
     verifyPin,
 } from "../utils/pin-utils";
-import { saveEncryptedVault } from "../utils/vault-storage";
+import { loadEncryptedVault, saveEncryptedVault } from "../utils/vault-storage";
 
 interface UnlockResult {
   success: boolean;
   lockedUntil: number | null;
+}
+
+interface ChangePinResult {
+  success: boolean;
+  error?: string;
 }
 
 interface AuthContextType {
@@ -25,6 +30,8 @@ interface AuthContextType {
   isPinSetup: boolean;
   setupPin: (pin: string) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<UnlockResult>;
+  verifyCurrentPin: (pin: string) => Promise<boolean>;
+  changePin: (currentPin: string, newPin: string) => Promise<ChangePinResult>;
   isLoading: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
@@ -151,6 +158,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const verifyCurrentPin = async (pin: string): Promise<boolean> => {
+    const pinHash = await SecureStore.getItemAsync("pinHash");
+    const pinSalt = await SecureStore.getItemAsync("pinSalt");
+    if (!pinHash || !pinSalt) {
+      return false;
+    }
+    return verifyPin(pin, pinSalt, pinHash);
+  };
+
+  const changePin = async (
+    currentPin: string,
+    newPin: string,
+  ): Promise<ChangePinResult> => {
+    if (!vaultKey) {
+      return { success: false, error: "Not unlocked." };
+    }
+
+    try {
+      const pinHash = await SecureStore.getItemAsync("pinHash");
+      const pinSalt = await SecureStore.getItemAsync("pinSalt");
+      if (!pinHash || !pinSalt) {
+        throw new Error("PIN not set up");
+      }
+
+      if (!verifyPin(currentPin, pinSalt, pinHash)) {
+        return { success: false, error: "Current PIN is incorrect." };
+      }
+
+      if (newPin.length < 4) {
+        return { success: false, error: "PIN must be at least 4 digits." };
+      }
+
+      // Decrypt under the current key, then re-encrypt under a freshly
+      // derived key so the vault stays readable under the new PIN.
+      const currentVault = await loadEncryptedVault(vaultKey);
+
+      const newSalt = generateSalt();
+      const newHash = hashPin(newPin, newSalt);
+      const newKey = deriveVaultKey(newPin, newSalt);
+
+      await saveEncryptedVault(currentVault, newKey);
+      await SecureStore.setItemAsync("pinHash", newHash);
+      await SecureStore.setItemAsync("pinSalt", newSalt);
+      await SecureStore.deleteItemAsync("pinFailedAttempts");
+      await SecureStore.deleteItemAsync("pinLockedUntil");
+
+      setVaultKey(newKey);
+      setFailedAttempts(0);
+      setLockedUntil(null);
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error changing PIN:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to change PIN.",
+      };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -158,6 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPinSetup,
         setupPin,
         unlockWithPin,
+        verifyCurrentPin,
+        changePin,
         isLoading,
         failedAttempts,
         lockedUntil,

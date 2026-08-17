@@ -199,6 +199,17 @@ export default function VaultScreen() {
     });
   };
 
+  const handleMoreOptions = () => {
+    setDialog({
+      title: "More Options",
+      options: [
+        { label: "Change PIN", onPress: () => router.push("/change-pin") },
+        { label: "Import Vault", onPress: handleImport },
+        { label: "Export Vault", onPress: handleExport },
+      ],
+    });
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -206,12 +217,6 @@ export default function VaultScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Your Vault</Text>
         <View style={styles.headerActions}>
-          <Pressable onPress={handleImport} hitSlop={12}>
-            <Ionicons name="download-outline" size={24} color={colors.accent} />
-          </Pressable>
-          <Pressable onPress={handleExport} hitSlop={12}>
-            <Ionicons name="share-outline" size={24} color={colors.accent} />
-          </Pressable>
           <Pressable
             onPress={() =>
               router.push({ pathname: "/entry/[id]", params: { id: "new" } })
@@ -219,6 +224,13 @@ export default function VaultScreen() {
             hitSlop={12}
           >
             <Ionicons name="add-circle" size={30} color={colors.accent} />
+          </Pressable>
+          <Pressable onPress={handleMoreOptions} hitSlop={12}>
+            <Ionicons
+              name="ellipsis-vertical"
+              size={22}
+              color={colors.accent}
+            />
           </Pressable>
         </View>
       </View>
