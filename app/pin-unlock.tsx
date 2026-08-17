@@ -129,8 +129,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 28,
+    fontWeight: "900",
     marginBottom: 8,
   },
   spinner: {
@@ -139,5 +139,6 @@ const styles = StyleSheet.create({
   error: {
     marginTop: 12,
     textAlign: "center",
+    fontWeight: "700",
   },
 });

@@ -1,7 +1,16 @@
+import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { NeoBrutalCard } from "./NeoBrutalCard";
 
 interface PlatformSelectProps {
   value: string;
@@ -23,12 +32,20 @@ export function PlatformSelect({
     <>
       <Pressable
         onPress={() => setOpen(true)}
-        style={[styles.field, { borderColor: colors.border }]}
+        style={[
+          styles.field,
+          { borderColor: colors.border, backgroundColor: colors.surface },
+        ]}
       >
-        <Text style={{ color: value ? colors.text : colors.subtext, fontSize: 16 }}>
+        <Text
+          style={[
+            styles.fieldText,
+            { color: value ? colors.text : colors.subtext },
+          ]}
+        >
           {value || placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={18} color={colors.subtext} />
+        <Ionicons name="chevron-down" size={20} color={colors.text} />
       </Pressable>
 
       <Modal
@@ -38,17 +55,14 @@ export function PlatformSelect({
         onRequestClose={() => setOpen(false)}
       >
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: colors.background, borderColor: colors.border },
-            ]}
-          >
+          <NeoBrutalCard style={styles.sheetSurface}>
             <FlatList
               data={options}
               keyExtractor={(item) => item}
               ItemSeparatorComponent={() => (
-                <View style={[styles.separator, { backgroundColor: colors.border }]} />
+                <View
+                  style={[styles.separator, { backgroundColor: colors.border }]}
+                />
               )}
               renderItem={({ item }) => (
                 <Pressable
@@ -58,14 +72,16 @@ export function PlatformSelect({
                     setOpen(false);
                   }}
                 >
-                  <Text style={{ color: colors.text, fontSize: 16 }}>{item}</Text>
+                  <Text style={[styles.optionText, { color: colors.text }]}>
+                    {item}
+                  </Text>
                   {item === value && (
-                    <Ionicons name="checkmark" size={18} color={colors.accent} />
+                    <Ionicons name="checkmark" size={20} color={colors.accent} />
                   )}
                 </Pressable>
               )}
             />
-          </View>
+          </NeoBrutalCard>
         </Pressable>
       </Modal>
     </>
@@ -77,31 +93,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  fieldText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     padding: 32,
   },
-  sheet: {
-    borderWidth: 1,
-    borderRadius: 12,
+  sheetSurface: {
     maxHeight: 320,
-    overflow: "hidden",
   },
   separator: {
-    height: StyleSheet.hairlineWidth,
+    height: BORDER_WIDTH,
   },
   option: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  optionText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

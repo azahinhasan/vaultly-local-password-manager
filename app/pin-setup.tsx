@@ -126,11 +126,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 28,
+    fontWeight: "900",
   },
   subtitle: {
     fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -139,5 +140,6 @@ const styles = StyleSheet.create({
   },
   error: {
     marginTop: 12,
+    fontWeight: "700",
   },
 });

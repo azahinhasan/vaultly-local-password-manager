@@ -187,13 +187,15 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
+    fontWeight: "800",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 26,
+    fontWeight: "900",
   },
   subtitle: {
     fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -203,5 +205,6 @@ const styles = StyleSheet.create({
   error: {
     marginTop: 12,
     textAlign: "center",
+    fontWeight: "700",
   },
 });

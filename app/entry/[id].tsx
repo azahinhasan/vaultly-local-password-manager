@@ -1,5 +1,8 @@
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { PlatformSelect } from "@/components/PlatformSelect";
 import { PLATFORMS } from "@/constants/platforms";
+import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
@@ -35,6 +38,7 @@ export default function EntryFormScreen() {
   const [notFound, setNotFound] = useState(false);
   const [platform, setPlatform] = useState("");
   const [isCustomPlatform, setIsCustomPlatform] = useState(false);
+  const [color, setColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
@@ -55,6 +59,7 @@ export default function EntryFormScreen() {
           if (existing) {
             setPlatform(existing.platform);
             setIsCustomPlatform(!PLATFORMS.includes(existing.platform));
+            setColor(existing.color);
             setUsername(existing.username);
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
@@ -84,6 +89,7 @@ export default function EntryFormScreen() {
     setIsSaving(true);
 
     const trimmedNotes = notes.trim();
+    const entryColor = isCustomPlatform ? color : undefined;
     const updated: VaultEntry[] = isNew
       ? [
           ...entries,
@@ -93,6 +99,7 @@ export default function EntryFormScreen() {
             username: username.trim(),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+            ...(entryColor ? { color: entryColor } : {}),
           },
         ]
       : entries.map((entry) =>
@@ -103,6 +110,7 @@ export default function EntryFormScreen() {
                 username: username.trim(),
                 password,
                 notes: trimmedNotes || undefined,
+                color: entryColor,
               }
             : entry,
         );
@@ -172,13 +180,14 @@ export default function EntryFormScreen() {
         <View style={styles.form}>
           <View>
             <View style={styles.platformHeader}>
-              <Text style={[styles.label, { color: colors.subtext }]}>
+              <Text style={[styles.label, { color: colors.text }]}>
                 Platform
               </Text>
               <Pressable
                 onPress={() => {
                   setIsCustomPlatform((v) => !v);
                   setPlatform("");
+                  setColor(undefined);
                 }}
               >
                 <Text style={[styles.link, { color: colors.accent }]}>
@@ -187,17 +196,33 @@ export default function EntryFormScreen() {
               </Pressable>
             </View>
             {isCustomPlatform ? (
-              <TextInput
-                style={[
-                  styles.input,
-                  { color: colors.text, borderColor: colors.border },
-                ]}
-                value={platform}
-                onChangeText={setPlatform}
-                placeholder="e.g. Steam"
-                placeholderTextColor={colors.subtext}
-                autoCapitalize="words"
-              />
+              <>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                    },
+                  ]}
+                  value={platform}
+                  onChangeText={setPlatform}
+                  placeholder="e.g. Steam"
+                  placeholderTextColor={colors.subtext}
+                  autoCapitalize="words"
+                />
+                <Text
+                  style={[
+                    styles.label,
+                    styles.colorLabel,
+                    { color: colors.text },
+                  ]}
+                >
+                  Color (optional)
+                </Text>
+                <ColorSwatchPicker value={color} onChange={setColor} />
+              </>
             ) : (
               <PlatformSelect
                 value={platform}
@@ -208,13 +233,17 @@ export default function EntryFormScreen() {
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Username
             </Text>
             <TextInput
               style={[
                 styles.input,
-                { color: colors.text, borderColor: colors.border },
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
               ]}
               value={username}
               onChangeText={setUsername}
@@ -225,7 +254,7 @@ export default function EntryFormScreen() {
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Password
             </Text>
             <View style={styles.passwordRow}>
@@ -233,7 +262,11 @@ export default function EntryFormScreen() {
                 style={[
                   styles.input,
                   styles.passwordInput,
-                  { color: colors.text, borderColor: colors.border },
+                  {
+                    color: colors.text,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
                 ]}
                 value={password}
                 onChangeText={setPassword}
@@ -250,21 +283,25 @@ export default function EntryFormScreen() {
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
                   size={20}
-                  color={colors.subtext}
+                  color={colors.text}
                 />
               </Pressable>
             </View>
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Notes (optional)
             </Text>
             <TextInput
               style={[
                 styles.input,
                 styles.notesInput,
-                { color: colors.text, borderColor: colors.border },
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
               ]}
               value={notes}
               onChangeText={setNotes}
@@ -276,21 +313,17 @@ export default function EntryFormScreen() {
           </View>
 
           {!!error && (
-            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
+            <Text style={[styles.error, { color: colors.error }]}>
+              {error}
+            </Text>
           )}
 
-          <Pressable
+          <NeoBrutalButton
+            label={isSaving ? "Saving..." : "Save"}
             onPress={handleSave}
             disabled={isSaving}
-            style={[
-              styles.saveButton,
-              { backgroundColor: colors.accent, opacity: isSaving ? 0.6 : 1 },
-            ]}
-          >
-            <Text style={styles.saveButtonText}>
-              {isSaving ? "Saving..." : "Save"}
-            </Text>
-          </Pressable>
+            style={styles.saveButton}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -315,62 +348,61 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
+    fontWeight: "800",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 26,
+    fontWeight: "900",
     marginBottom: 12,
   },
   form: {
-    gap: 16,
+    gap: 18,
   },
   label: {
-    fontSize: 13,
-    marginBottom: 6,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  colorLabel: {
+    marginTop: 14,
   },
   platformHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   link: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
+    fontWeight: "600",
   },
   passwordRow: {
     position: "relative",
     justifyContent: "center",
   },
   passwordInput: {
-    paddingRight: 40,
+    paddingRight: 44,
   },
   eyeButton: {
     position: "absolute",
-    right: 12,
+    right: 14,
   },
   notesInput: {
     minHeight: 80,
   },
   error: {
     fontSize: 13,
+    fontWeight: "700",
   },
   saveButton: {
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
     marginTop: 8,
-  },
-  saveButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

@@ -14,6 +14,8 @@ export interface VaultEntry {
   username: string;
   password: string;
   notes?: string;
+  /** Custom color for a manually-entered platform; ignored for fixed platforms. */
+  color?: string;
 }
 
 interface EncryptedVault {

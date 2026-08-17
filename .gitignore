@@ -39,6 +39,7 @@ yarn-error.*
 app-example
 AGENTS.md
 CLAUDE.md
+plan.md
 
 # generated native folders
 /ios

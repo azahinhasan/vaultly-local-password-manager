@@ -1,3 +1,4 @@
+import { BORDER_WIDTH } from "@/constants/theme";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { useRef } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -26,19 +27,25 @@ export function PinBoxInput({
 
   return (
     <Pressable style={styles.row} onPress={() => inputRef.current?.focus()}>
-      {Array.from({ length }).map((_, i) => (
-        <View
-          key={i}
-          style={[
-            styles.box,
-            { borderColor: i < value.length ? colors.borderFilled : colors.border },
-          ]}
-        >
-          {i < value.length && (
-            <View style={[styles.dot, { backgroundColor: colors.dot }]} />
-          )}
-        </View>
-      ))}
+      {Array.from({ length }).map((_, i) => {
+        const isFilled = i < value.length;
+        return (
+          <View
+            key={i}
+            style={[
+              styles.box,
+              {
+                borderColor: colors.border,
+                backgroundColor: isFilled ? colors.accent : colors.surface,
+              },
+            ]}
+          >
+            {isFilled && (
+              <View style={[styles.dot, { backgroundColor: colors.accentText }]} />
+            )}
+          </View>
+        );
+      })}
       <TextInput
         ref={inputRef}
         value={value}
@@ -62,10 +69,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   box: {
-    width: 32,
-    height: 42,
-    borderWidth: 1.5,
-    borderRadius: 8,
+    width: 34,
+    height: 44,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -17,7 +17,8 @@ function isValidEntryShape(value: unknown): value is VaultEntry {
     typeof entry.platform === "string" &&
     typeof entry.username === "string" &&
     typeof entry.password === "string" &&
-    (entry.notes === undefined || typeof entry.notes === "string")
+    (entry.notes === undefined || typeof entry.notes === "string") &&
+    (entry.color === undefined || typeof entry.color === "string")
   );
 }
 
