@@ -95,10 +95,7 @@ export default function PinUnlockScreen() {
         />
 
         {isChecking && (
-          <ActivityIndicator
-            style={styles.spinner}
-            color={colors.accent}
-          />
+          <ActivityIndicator style={styles.spinner} color={colors.accent} />
         )}
 
         {isLocked ? (
@@ -107,9 +104,7 @@ export default function PinUnlockScreen() {
           </Text>
         ) : (
           !!error && (
-            <Text style={[styles.error, { color: colors.error }]}>
-              {error}
-            </Text>
+            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )
         )}
       </KeyboardAvoidingView>
@@ -123,9 +118,10 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 24,
+    paddingTop: 200,
     gap: 12,
   },
   title: {
