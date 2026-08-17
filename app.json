@@ -8,6 +8,12 @@
     "scheme": "passwordmanagermobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cba802ba-e836-40b8-b9c2-3b28a0606751"
+    },
     "ios": {
       "supportsTablet": true
     },

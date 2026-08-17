@@ -17,7 +17,7 @@ export const PLATFORM_COLORS: Record<string, string> = {
   Microsoft: "#16A34A",
   Ubisoft: "#F97316",
   Steam: "#6e7a95",
-  EA: "#F5F5F5",
+  EA: "#b87700",
   Sony: "#003791",
 };
 

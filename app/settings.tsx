@@ -14,8 +14,16 @@ import {
 import { loadEncryptedVault, saveEncryptedVault } from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
+import * as Updates from "expo-updates";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SettingsScreen() {
@@ -30,6 +38,7 @@ export default function SettingsScreen() {
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -111,6 +120,63 @@ export default function SettingsScreen() {
         { label: "Encrypted", onPress: () => runImport(true) },
       ],
     });
+  };
+
+  const downloadAndApplyUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch (e) {
+      setDialog({
+        title: "Update failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleCheckForUpdates = async () => {
+    if (!Updates.isEnabled) {
+      setDialog({
+        title: "Updates unavailable",
+        message:
+          "This build doesn't support checking for updates (e.g. Expo Go, or a build without EAS Update configured).",
+        options: [{ label: "OK" }],
+      });
+      return;
+    }
+
+    setIsCheckingUpdate(true);
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      setIsCheckingUpdate(false);
+
+      if (!result.isAvailable) {
+        setDialog({
+          title: "Up to date",
+          message: "You're already on the latest version.",
+          options: [{ label: "OK" }],
+        });
+        return;
+      }
+
+      setDialog({
+        title: "Update available",
+        message: "A new version is ready. Download and restart now?",
+        options: [
+          { label: "Download & Restart", onPress: downloadAndApplyUpdate },
+        ],
+      });
+    } catch (e) {
+      setIsCheckingUpdate(false);
+      setDialog({
+        title: "Update check failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+    }
   };
 
   return (
@@ -222,6 +288,24 @@ export default function SettingsScreen() {
               <Ionicons name="share" size={20} color={colors.text} />
               <Text style={[styles.actionLabel, { color: colors.text }]}>
                 Export Vault
+              </Text>
+            </View>
+          </NeoBrutalCard>
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>App</Text>
+        <View style={styles.actionList}>
+          <NeoBrutalCard
+            onPress={isCheckingUpdate ? undefined : handleCheckForUpdates}
+          >
+            <View style={styles.actionRow}>
+              {isCheckingUpdate ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <Ionicons name="refresh" size={20} color={colors.text} />
+              )}
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                {isCheckingUpdate ? "Checking..." : "Check for Updates"}
               </Text>
             </View>
           </NeoBrutalCard>
