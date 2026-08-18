@@ -4,7 +4,7 @@
 
 A free, fully offline password manager for Android. No account to create, no server to trust, no subscription. Your vault lives on your phone, and nowhere else.
 
-[![Download Latest Release](https://img.shields.io/github/v/release/azahinhasan/password-manager-mobile?label=Download&style=for-the-badge&color=F0603C)](https://github.com/azahinhasan/password-manager-mobile/releases/latest)
+[![Download Latest Release](https://img.shields.io/github/v/release/azahinhasan/password-manager-mobile?label=Download&style=for-the-badge&color=2081ED)](https://github.com/azahinhasan/password-manager-mobile/releases/latest)
 
 ## Why it's secure
 
