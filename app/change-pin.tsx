@@ -41,15 +41,7 @@ export default function ChangePinScreen() {
     setConfirmPin("");
   };
 
-  const handleCurrentChange = async (value: string) => {
-    setError("");
-    setCurrentPin(value);
-
-    if (value.length !== PIN_LENGTH) {
-      return;
-    }
-
-    setIsChecking(true);
+  const performVerifyCurrent = async (value: string) => {
     const isValid = await verifyCurrentPin(value);
     setIsChecking(false);
 
@@ -61,6 +53,20 @@ export default function ChangePinScreen() {
     }
   };
 
+  const handleCurrentChange = (value: string) => {
+    setError("");
+    setCurrentPin(value);
+
+    if (value.length !== PIN_LENGTH) {
+      return;
+    }
+
+    // Let the filled-in last digit (and the spinner below) actually paint
+    // before PIN verification's PBKDF2 work blocks the JS thread.
+    setIsChecking(true);
+    setTimeout(() => performVerifyCurrent(value), 0);
+  };
+
   const handleCreateChange = (value: string) => {
     setError("");
     setNewPin(value);
@@ -69,7 +75,19 @@ export default function ChangePinScreen() {
     }
   };
 
-  const handleConfirmChange = async (value: string) => {
+  const performChangePin = async (confirmedNewPin: string) => {
+    const result = await changePin(currentPin, confirmedNewPin);
+    setIsSaving(false);
+
+    if (result.success) {
+      router.back();
+    } else {
+      setError(result.error ?? "Failed to change PIN.");
+      resetToStart();
+    }
+  };
+
+  const handleConfirmChange = (value: string) => {
     setError("");
     setConfirmPin(value);
 
@@ -85,16 +103,10 @@ export default function ChangePinScreen() {
       return;
     }
 
+    // Let the filled-in last digit (and the spinner below) actually paint
+    // before changePin's PBKDF2 work blocks the JS thread.
     setIsSaving(true);
-    const result = await changePin(currentPin, newPin);
-    setIsSaving(false);
-
-    if (result.success) {
-      router.back();
-    } else {
-      setError(result.error ?? "Failed to change PIN.");
-      resetToStart();
-    }
+    setTimeout(() => performChangePin(newPin), 0);
   };
 
   return (
@@ -175,9 +187,10 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 24,
+    paddingTop: 200,
     gap: 12,
   },
   cancelButton: {
@@ -187,13 +200,15 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
+    fontWeight: "800",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 26,
+    fontWeight: "900",
   },
   subtitle: {
     fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -203,5 +218,6 @@ const styles = StyleSheet.create({
   error: {
     marginTop: 12,
     textAlign: "center",
+    fontWeight: "700",
   },
 });

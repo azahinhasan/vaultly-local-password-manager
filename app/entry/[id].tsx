@@ -1,6 +1,10 @@
+import { AppDialog, AppDialogOption } from "@/components/AppDialog";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { PlatformSelect } from "@/components/PlatformSelect";
-import { PLATFORMS } from "@/constants/platforms";
+import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
   loadEncryptedVault,
@@ -10,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,21 +30,32 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function EntryFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { vaultKey } = useAuth();
+  const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
 
   const isNew = id === "new";
+  const platformNames = useMemo(() => platforms.map((p) => p.name), [platforms]);
 
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [platform, setPlatform] = useState("");
   const [isCustomPlatform, setIsCustomPlatform] = useState(false);
+  const [color, setColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    message?: string;
+    options: AppDialogOption[];
+  } | null>(null);
+  const closeDialog = () => setDialog(null);
 
   useEffect(() => {
     if (!vaultKey) {
@@ -54,8 +69,10 @@ export default function EntryFormScreen() {
           const existing = vault.find((entry) => entry.id === id);
           if (existing) {
             setPlatform(existing.platform);
-            setIsCustomPlatform(!PLATFORMS.includes(existing.platform));
-            setUsername(existing.username);
+            setIsCustomPlatform(!platformNames.includes(existing.platform));
+            setColor(existing.color);
+            setUsername(existing.username ?? "");
+            setEmail(existing.email ?? "");
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
           } else {
@@ -64,6 +81,9 @@ export default function EntryFormScreen() {
         }
       })
       .catch(() => setError("Failed to load vault."));
+    // Only re-run when the id being edited changes, not every time the
+    // managed platforms list changes (that would clobber in-progress edits).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultKey, id, isNew]);
 
   if (!vaultKey) {
@@ -75,8 +95,13 @@ export default function EntryFormScreen() {
       return;
     }
 
-    if (!platform || !username.trim() || !password) {
-      setError("Platform, username, and password are required.");
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+
+    if (!platform || !password || (!trimmedUsername && !trimmedEmail)) {
+      setError(
+        "Platform, password, and at least a username or email are required.",
+      );
       return;
     }
 
@@ -84,15 +109,18 @@ export default function EntryFormScreen() {
     setIsSaving(true);
 
     const trimmedNotes = notes.trim();
+    const entryColor = isCustomPlatform ? color : undefined;
     const updated: VaultEntry[] = isNew
       ? [
           ...entries,
           {
             id: Crypto.randomUUID(),
             platform,
-            username: username.trim(),
+            ...(trimmedUsername ? { username: trimmedUsername } : {}),
+            ...(trimmedEmail ? { email: trimmedEmail } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+            ...(entryColor ? { color: entryColor } : {}),
           },
         ]
       : entries.map((entry) =>
@@ -100,9 +128,11 @@ export default function EntryFormScreen() {
             ? {
                 ...entry,
                 platform,
-                username: username.trim(),
+                username: trimmedUsername || undefined,
+                email: trimmedEmail || undefined,
                 password,
                 notes: trimmedNotes || undefined,
+                color: entryColor,
               }
             : entry,
         );
@@ -114,6 +144,31 @@ export default function EntryFormScreen() {
       setError("Failed to save entry.");
       setIsSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!entries) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const updated = entries.filter((entry) => entry.id !== id);
+
+    try {
+      await saveEncryptedVault(updated, vaultKey);
+      router.back();
+    } catch {
+      setError("Failed to delete entry.");
+      setIsDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    setDialog({
+      title: "Delete entry?",
+      message: `This will permanently delete the entry.`,
+      options: [{ label: "Delete", destructive: true, onPress: handleDelete }],
+    });
   };
 
   if (notFound) {
@@ -172,13 +227,14 @@ export default function EntryFormScreen() {
         <View style={styles.form}>
           <View>
             <View style={styles.platformHeader}>
-              <Text style={[styles.label, { color: colors.subtext }]}>
+              <Text style={[styles.label, { color: colors.text }]}>
                 Platform
               </Text>
               <Pressable
                 onPress={() => {
                   setIsCustomPlatform((v) => !v);
                   setPlatform("");
+                  setColor(undefined);
                 }}
               >
                 <Text style={[styles.link, { color: colors.accent }]}>
@@ -187,53 +243,97 @@ export default function EntryFormScreen() {
               </Pressable>
             </View>
             {isCustomPlatform ? (
-              <TextInput
-                style={[
-                  styles.input,
-                  { color: colors.text, borderColor: colors.border },
-                ]}
-                value={platform}
-                onChangeText={setPlatform}
-                placeholder="e.g. Steam"
-                placeholderTextColor={colors.subtext}
-                autoCapitalize="words"
-              />
+              <>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                    },
+                  ]}
+                  value={platform}
+                  onChangeText={setPlatform}
+                  placeholder="e.g. Steam"
+                  placeholderTextColor={colors.subtext}
+                  autoCapitalize="words"
+                />
+                <Text
+                  style={[
+                    styles.label,
+                    styles.colorLabel,
+                    { color: colors.text },
+                  ]}
+                >
+                  Color (optional)
+                </Text>
+                <ColorSwatchPicker value={color} onChange={setColor} />
+              </>
             ) : (
               <PlatformSelect
                 value={platform}
                 onChange={setPlatform}
-                options={PLATFORMS}
+                options={platformNames}
               />
             )}
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
-              Username
+            <Text style={[styles.label, { color: colors.text }]}>
+              Username (optional)
             </Text>
             <TextInput
               style={[
                 styles.input,
-                { color: colors.text, borderColor: colors.border },
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
               ]}
               value={username}
               onChangeText={setUsername}
-              placeholder="Username or Email"
+              placeholder="Username"
               placeholderTextColor={colors.subtext}
               autoCapitalize="none"
             />
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
-              Password
+            <Text style={[styles.label, { color: colors.text }]}>
+              Email (optional)
             </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email address"
+              placeholderTextColor={colors.subtext}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View>
+            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[
                   styles.input,
                   styles.passwordInput,
-                  { color: colors.text, borderColor: colors.border },
+                  {
+                    color: colors.text,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
                 ]}
                 value={password}
                 onChangeText={setPassword}
@@ -250,21 +350,25 @@ export default function EntryFormScreen() {
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
                   size={20}
-                  color={colors.subtext}
+                  color={colors.text}
                 />
               </Pressable>
             </View>
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.subtext }]}>
+            <Text style={[styles.label, { color: colors.text }]}>
               Notes (optional)
             </Text>
             <TextInput
               style={[
                 styles.input,
                 styles.notesInput,
-                { color: colors.text, borderColor: colors.border },
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
               ]}
               value={notes}
               onChangeText={setNotes}
@@ -279,20 +383,33 @@ export default function EntryFormScreen() {
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )}
 
-          <Pressable
+          <NeoBrutalButton
+            label={isSaving ? "Saving..." : "Save"}
             onPress={handleSave}
-            disabled={isSaving}
-            style={[
-              styles.saveButton,
-              { backgroundColor: colors.accent, opacity: isSaving ? 0.6 : 1 },
-            ]}
-          >
-            <Text style={styles.saveButtonText}>
-              {isSaving ? "Saving..." : "Save"}
-            </Text>
-          </Pressable>
+            disabled={isSaving || isDeleting}
+            color="#2847b8"
+            textColor="#FFFFFF"
+            style={styles.saveButton}
+          />
+
+          {!isNew && (
+            <NeoBrutalButton
+              label={isDeleting ? "Deleting..." : "Delete"}
+              onPress={confirmDelete}
+              disabled={isSaving || isDeleting}
+              variant="error"
+            />
+          )}
         </View>
       </KeyboardAvoidingView>
+
+      <AppDialog
+        visible={dialog !== null}
+        title={dialog?.title ?? ""}
+        message={dialog?.message}
+        options={dialog?.options ?? []}
+        onDismiss={closeDialog}
+      />
     </SafeAreaView>
   );
 }
@@ -315,62 +432,61 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
+    fontWeight: "800",
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 26,
+    fontWeight: "900",
     marginBottom: 12,
   },
   form: {
-    gap: 16,
+    gap: 18,
   },
   label: {
-    fontSize: 13,
-    marginBottom: 6,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  colorLabel: {
+    marginTop: 14,
   },
   platformHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   link: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "800",
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
+    fontWeight: "600",
   },
   passwordRow: {
     position: "relative",
     justifyContent: "center",
   },
   passwordInput: {
-    paddingRight: 40,
+    paddingRight: 44,
   },
   eyeButton: {
     position: "absolute",
-    right: 12,
+    right: 14,
   },
   notesInput: {
     minHeight: 80,
   },
   error: {
     fontSize: 13,
+    fontWeight: "700",
   },
   saveButton: {
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
     marginTop: 8,
-  },
-  saveButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

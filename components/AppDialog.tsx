@@ -1,5 +1,10 @@
+import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { NeoBrutalCard } from "./NeoBrutalCard";
+
+const HIGHLIGHT_COLOR = "#F97316";
+const HIGHLIGHT_TEXT_COLOR = "#FFFFFF";
 
 export interface AppDialogOption {
   label: string;
@@ -11,6 +16,9 @@ interface AppDialogProps {
   visible: boolean;
   title: string;
   message?: string;
+  /** An extra note rendered as an orange callout below `message`, for
+   * warnings that shouldn't be missed (e.g. "remember this PIN"). */
+  highlightNote?: string;
   options: AppDialogOption[];
   onDismiss: () => void;
 }
@@ -19,6 +27,7 @@ export function AppDialog({
   visible,
   title,
   message,
+  highlightNote,
   options,
   onDismiss,
 }: AppDialogProps) {
@@ -32,18 +41,23 @@ export function AppDialog({
       onRequestClose={onDismiss}
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <View
-          style={[
-            styles.sheet,
-            { backgroundColor: colors.background, borderColor: colors.border },
-          ]}
-        >
+        <NeoBrutalCard>
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             {!!message && (
               <Text style={[styles.message, { color: colors.subtext }]}>
                 {message}
               </Text>
+            )}
+            {!!highlightNote && (
+              <View
+                style={[
+                  styles.highlightBox,
+                  { backgroundColor: HIGHLIGHT_COLOR },
+                ]}
+              >
+                <Text style={styles.highlightText}>{highlightNote}</Text>
+              </View>
             )}
           </View>
 
@@ -70,7 +84,7 @@ export function AppDialog({
               </Pressable>
             </View>
           ))}
-        </View>
+        </NeoBrutalCard>
       </Pressable>
     </Modal>
   );
@@ -79,41 +93,49 @@ export function AppDialog({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     padding: 32,
   },
-  sheet: {
-    borderWidth: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 22,
+    paddingBottom: 18,
     gap: 6,
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "800",
     textAlign: "center",
   },
   message: {
     fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  highlightBox: {
+    borderRadius: RADIUS - 4,
+    padding: 12,
+    marginTop: 4,
+  },
+  highlightText: {
+    color: HIGHLIGHT_TEXT_COLOR,
+    fontSize: 14,
+    fontWeight: "700",
     textAlign: "center",
     lineHeight: 20,
   },
   separator: {
-    height: StyleSheet.hairlineWidth,
+    height: BORDER_WIDTH,
   },
   option: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 16,
   },
   optionText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "800",
     textAlign: "center",
   },
 });

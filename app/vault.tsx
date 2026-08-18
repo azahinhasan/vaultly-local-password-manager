@@ -1,15 +1,10 @@
 import { AppDialog, AppDialogOption } from "@/components/AppDialog";
+import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PlatformSelect } from "@/components/PlatformSelect";
-import { PLATFORMS } from "@/constants/platforms";
+import { getPlatformColor } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
-import {
-  exportVaultDecrypted,
-  exportVaultEncrypted,
-  parseDecryptedImport,
-  parseEncryptedImport,
-  pickJsonFileContent,
-} from "@/utils/vault-export";
 import {
   loadEncryptedVault,
   saveEncryptedVault,
@@ -31,14 +26,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const ALL_PLATFORMS_OPTION = "All";
 const OTHER_PLATFORMS_OPTION = "Other";
-const FILTER_OPTIONS = [
-  ALL_PLATFORMS_OPTION,
-  ...PLATFORMS,
-  OTHER_PLATFORMS_OPTION,
-];
 
 export default function VaultScreen() {
   const { vaultKey } = useAuth();
+  const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
 
@@ -52,6 +43,15 @@ export default function VaultScreen() {
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
+
+  const filterOptions = useMemo(
+    () => [
+      ALL_PLATFORMS_OPTION,
+      ...platforms.map((p) => p.name),
+      OTHER_PLATFORMS_OPTION,
+    ],
+    [platforms],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -73,10 +73,12 @@ export default function VaultScreen() {
       return entries;
     }
     if (platformFilter === OTHER_PLATFORMS_OPTION) {
-      return entries.filter((entry) => !PLATFORMS.includes(entry.platform));
+      return entries.filter(
+        (entry) => !platforms.some((p) => p.name === entry.platform),
+      );
     }
     return entries.filter((entry) => entry.platform === platformFilter);
-  }, [entries, platformFilter]);
+  }, [entries, platformFilter, platforms]);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -93,7 +95,7 @@ export default function VaultScreen() {
   const confirmDelete = (entry: VaultEntry) => {
     setDialog({
       title: "Delete entry?",
-      message: `This will permanently delete "${entry.platform}".`,
+      message: `This will permanently delete the entry.`,
       options: [
         {
           label: "Delete",
@@ -119,97 +121,6 @@ export default function VaultScreen() {
     }
   };
 
-  const runExport = async (isEncrypted: boolean) => {
-    if (!entries) {
-      return;
-    }
-
-    try {
-      if (isEncrypted) {
-        await exportVaultEncrypted(entries, vaultKey);
-      } else {
-        await exportVaultDecrypted(entries);
-      }
-    } catch (e) {
-      setDialog({
-        title: "Export failed",
-        message: e instanceof Error ? e.message : "Something went wrong.",
-        options: [{ label: "OK" }],
-      });
-    }
-  };
-
-  const handleExport = () => {
-    if (!entries || entries.length === 0) {
-      setDialog({
-        title: "Nothing to export",
-        message: "Your vault is empty.",
-        options: [{ label: "OK" }],
-      });
-      return;
-    }
-
-    setDialog({
-      title: "Export Vault",
-      message:
-        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords. Encrypted exports stay protected, and can only be restored under this same PIN.",
-      options: [
-        { label: "Decrypted", onPress: () => runExport(false) },
-        { label: "Encrypted", onPress: () => runExport(true) },
-      ],
-    });
-  };
-
-  const runImport = async (isEncrypted: boolean) => {
-    try {
-      const content = await pickJsonFileContent();
-      if (content === null) {
-        return;
-      }
-
-      const imported = isEncrypted
-        ? await parseEncryptedImport(content, vaultKey)
-        : parseDecryptedImport(content);
-
-      const updated = [...(entries ?? []), ...imported];
-      await saveEncryptedVault(updated, vaultKey);
-      setEntries(updated);
-      setDialog({
-        title: "Import complete",
-        message: `Added ${imported.length} ${imported.length === 1 ? "entry" : "entries"}.`,
-        options: [{ label: "OK" }],
-      });
-    } catch (e) {
-      setDialog({
-        title: "Import failed",
-        message: e instanceof Error ? e.message : "Something went wrong.",
-        options: [{ label: "OK" }],
-      });
-    }
-  };
-
-  const handleImport = () => {
-    setDialog({
-      title: "Import Vault",
-      message: "What format is the JSON file you're importing?",
-      options: [
-        { label: "Decrypted", onPress: () => runImport(false) },
-        { label: "Encrypted", onPress: () => runImport(true) },
-      ],
-    });
-  };
-
-  const handleMoreOptions = () => {
-    setDialog({
-      title: "More Options",
-      options: [
-        { label: "Change PIN", onPress: () => router.push("/change-pin") },
-        { label: "Import Vault", onPress: handleImport },
-        { label: "Export Vault", onPress: handleExport },
-      ],
-    });
-  };
-
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -223,14 +134,10 @@ export default function VaultScreen() {
             }
             hitSlop={12}
           >
-            <Ionicons name="add-circle" size={30} color={colors.accent} />
+            <Ionicons name="add-circle" size={32} color={colors.accent} />
           </Pressable>
-          <Pressable onPress={handleMoreOptions} hitSlop={12}>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={22}
-              color={colors.accent}
-            />
+          <Pressable onPress={() => router.push("/settings")} hitSlop={12}>
+            <Ionicons name="settings" size={26} color={colors.text} />
           </Pressable>
         </View>
       </View>
@@ -241,7 +148,7 @@ export default function VaultScreen() {
           onChange={(value) =>
             setPlatformFilter(value === ALL_PLATFORMS_OPTION ? null : value)
           }
-          options={FILTER_OPTIONS}
+          options={filterOptions}
         />
       )}
 
@@ -262,38 +169,76 @@ export default function VaultScreen() {
           data={filteredEntries ?? []}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <Pressable
+            <NeoBrutalCard
               onPress={() => openEntry(item.id)}
               onLongPress={() => confirmDelete(item)}
-              style={[styles.card, { backgroundColor: colors.card }]}
             >
-              <View style={styles.cardText}>
-                <Text style={[styles.platform, { color: colors.text }]}>
-                  {item.platform}
-                </Text>
-                <Text style={[styles.username, { color: colors.subtext }]}>
-                  {item.username}
-                </Text>
-                <Text style={[styles.password, { color: colors.subtext }]}>
-                  {revealed[item.id] ? item.password : "••••••••"}
-                </Text>
+              <View style={styles.cardInner}>
+                <View style={styles.cardText}>
+                  <View style={styles.platformRow}>
+                    <View
+                      style={[
+                        styles.colorDot,
+                        {
+                          backgroundColor: getPlatformColor(
+                            item.platform,
+                            platforms,
+                            item.color,
+                          ),
+                          borderColor: colors.border,
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.platform,
+                        {
+                          color: getPlatformColor(
+                            item.platform,
+                            platforms,
+                            item.color,
+                          ),
+                        },
+                      ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {item.platform}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.username, { color: colors.subtext }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.email || item.username}
+                  </Text>
+                  <Text
+                    style={[styles.password, { color: colors.subtext }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {revealed[item.id] ? item.password : "••••••••"}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    toggleReveal(item.id);
+                  }}
+                  hitSlop={12}
+                  style={styles.toggle}
+                >
+                  <Ionicons
+                    name={revealed[item.id] ? "eye-off" : "eye"}
+                    size={22}
+                    color={colors.text}
+                  />
+                </Pressable>
               </View>
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  toggleReveal(item.id);
-                }}
-                hitSlop={12}
-                style={styles.toggle}
-              >
-                <Ionicons
-                  name={revealed[item.id] ? "eye-off" : "eye"}
-                  size={22}
-                  color={colors.subtext}
-                />
-              </Pressable>
-            </Pressable>
+            </NeoBrutalCard>
           )}
         />
       )}
@@ -324,39 +269,54 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 18,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 26,
+    fontWeight: "900",
   },
   message: {
     marginTop: 24,
     textAlign: "center",
+    fontWeight: "700",
   },
   list: {
-    gap: 12,
+    gap: 16,
   },
-  card: {
+  cardInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 12,
     padding: 16,
   },
   cardText: {
     flex: 1,
-    gap: 2,
+    gap: 3,
+  },
+  platformRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  colorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    flexShrink: 0,
   },
   platform: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "800",
+    flexShrink: 1,
   },
   username: {
     fontSize: 13,
+    fontWeight: "600",
   },
   password: {
     fontSize: 13,
+    fontWeight: "600",
     letterSpacing: 1,
   },
   toggle: {

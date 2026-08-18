@@ -1,11 +1,14 @@
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import * as Crypto from "expo-crypto";
+import { File, Paths } from "expo-file-system";
+import * as SecureStore from "expo-secure-store";
+import * as Sharing from "expo-sharing";
+import { deriveVaultKey } from "./pin-utils";
 import { decryptVault, encryptVault, VaultEntry } from "./vault-storage";
 
 interface EncryptedVaultFile {
   ciphertext: string;
   iv: string;
+  salt: string;
 }
 
 function isValidEntryShape(value: unknown): value is VaultEntry {
@@ -15,9 +18,12 @@ function isValidEntryShape(value: unknown): value is VaultEntry {
   const entry = value as Record<string, unknown>;
   return (
     typeof entry.platform === "string" &&
-    typeof entry.username === "string" &&
     typeof entry.password === "string" &&
-    (entry.notes === undefined || typeof entry.notes === "string")
+    (entry.username === undefined || typeof entry.username === "string") &&
+    (entry.email === undefined || typeof entry.email === "string") &&
+    (!!entry.username?.toString().trim() || !!entry.email?.toString().trim()) &&
+    (entry.notes === undefined || typeof entry.notes === "string") &&
+    (entry.color === undefined || typeof entry.color === "string")
   );
 }
 
@@ -52,13 +58,21 @@ export async function exportVaultEncrypted(
   entries: VaultEntry[],
   key: Uint8Array,
 ): Promise<void> {
+  // The salt isn't secret (that's the point of a salt) — embedding it lets
+  // this file be decrypted with just the PIN later, even after a reinstall
+  // regenerates a new salt for the current installation.
+  const salt = await SecureStore.getItemAsync("pinSalt");
+  if (!salt) {
+    throw new Error("PIN salt not found — set up a PIN first.");
+  }
+
   const encrypted = await encryptVault(entries, key);
   const file = new File(
     Paths.cache,
     `vault-export-encrypted-${Date.now()}.json`,
   );
   file.create({ overwrite: true });
-  file.write(JSON.stringify(encrypted, null, 2));
+  file.write(JSON.stringify({ ...encrypted, salt }, null, 2));
   await shareAndCleanup(file);
 }
 
@@ -94,9 +108,15 @@ export function parseDecryptedImport(content: string): VaultEntry[] {
   return parsed.map((entry) => ({ ...entry, id: Crypto.randomUUID() }));
 }
 
+/**
+ * Decrypts an encrypted export using the PIN it was exported with (not the
+ * current installation's PIN/key) — the salt travels with the file, so the
+ * key is derived fresh from `pin` + that salt, regardless of what salt this
+ * device currently has.
+ */
 export async function parseEncryptedImport(
   content: string,
-  key: Uint8Array,
+  pin: string,
 ): Promise<VaultEntry[]> {
   let parsed: unknown;
   try {
@@ -106,16 +126,22 @@ export async function parseEncryptedImport(
   }
 
   const blob = parsed as Partial<EncryptedVaultFile>;
-  if (typeof blob.ciphertext !== "string" || typeof blob.iv !== "string") {
+  if (
+    typeof blob.ciphertext !== "string" ||
+    typeof blob.iv !== "string" ||
+    typeof blob.salt !== "string"
+  ) {
     throw new Error("That file doesn't look like an encrypted vault export.");
   }
+
+  const key = deriveVaultKey(pin, blob.salt);
 
   let decrypted: VaultEntry[];
   try {
     decrypted = await decryptVault(blob.ciphertext, blob.iv, key);
   } catch {
     throw new Error(
-      "Couldn't decrypt this file — it may have been exported with a different PIN.",
+      "Couldn't decrypt this file — check you entered the PIN it was exported with.",
     );
   }
 

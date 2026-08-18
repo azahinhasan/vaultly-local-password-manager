@@ -39,7 +39,19 @@ export default function PinSetupScreen() {
     }
   };
 
-  const handleConfirmChange = async (value: string) => {
+  const performSetup = async (confirmedPin: string) => {
+    try {
+      await setupPin(confirmedPin);
+      router.replace("/vault");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to set up PIN.");
+      reset();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmChange = (value: string) => {
     setError("");
     setConfirmPin(value);
 
@@ -53,16 +65,10 @@ export default function PinSetupScreen() {
       return;
     }
 
-    try {
-      setIsSaving(true);
-      await setupPin(pin);
-      router.replace("/vault");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to set up PIN.");
-      reset();
-    } finally {
-      setIsSaving(false);
-    }
+    // Let the filled-in last digit (and the spinner below) actually paint
+    // before setupPin's PBKDF2 work blocks the JS thread.
+    setIsSaving(true);
+    setTimeout(() => performSetup(pin), 0);
   };
 
   return (
@@ -120,17 +126,19 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     padding: 24,
+    paddingTop: 200,
     gap: 12,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 28,
+    fontWeight: "900",
   },
   subtitle: {
     fontSize: 14,
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -139,5 +147,6 @@ const styles = StyleSheet.create({
   },
   error: {
     marginTop: 12,
+    fontWeight: "700",
   },
 });
