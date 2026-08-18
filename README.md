@@ -11,7 +11,7 @@ A simple, fully offline password manager for Android, built with React Native an
 - Export your vault as a JSON file (encrypted or plain), and import it back in
 - Light and dark mode, following your system setting
 
-## Screenshorts
+## Screenshots
 <img width="250" height="550" alt="Screenshot_20260818_135205" src="https://github.com/user-attachments/assets/18af97d9-a777-4384-923c-0d5e63619f51" />
 <img width="250" height="550" alt="Screenshot_20260818_135051" src="https://github.com/user-attachments/assets/d7557dd6-854e-45c1-ae5f-e4d14f875622" />
 <img width="250" height="550" alt="Screenshot_20260818_135128" src="https://github.com/user-attachments/assets/9878812a-5e17-43c3-8c5a-f16b267a64ef" />
