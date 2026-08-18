@@ -1,5 +1,6 @@
 import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
+import { PinPromptDialog } from "@/components/PinPromptDialog";
 import { BORDER_WIDTH, THEME_OPTIONS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -11,7 +12,11 @@ import {
   parseEncryptedImport,
   pickJsonFileContent,
 } from "@/utils/vault-export";
-import { loadEncryptedVault, saveEncryptedVault } from "@/utils/vault-storage";
+import {
+  loadEncryptedVault,
+  saveEncryptedVault,
+  VaultEntry,
+} from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
@@ -39,6 +44,10 @@ export default function SettingsScreen() {
   } | null>(null);
   const closeDialog = () => setDialog(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [pendingImportContent, setPendingImportContent] = useState<
+    string | null
+  >(null);
+  const [importPinError, setImportPinError] = useState("");
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -74,7 +83,7 @@ export default function SettingsScreen() {
     setDialog({
       title: "Export Vault",
       message:
-        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords. Encrypted exports stay protected, and can only be restored under this same PIN.",
+        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords. Encrypted exports stay protected, but you'll need to enter the PIN you used to export it when you import this file later — remember that PIN, since there's no way to recover it otherwise.",
       options: [
         { label: "Decrypted", onPress: () => runExport(false) },
         { label: "Encrypted", onPress: () => runExport(true) },
@@ -82,17 +91,8 @@ export default function SettingsScreen() {
     });
   };
 
-  const runImport = async (isEncrypted: boolean) => {
+  const finishImport = async (imported: VaultEntry[]) => {
     try {
-      const content = await pickJsonFileContent();
-      if (content === null) {
-        return;
-      }
-
-      const imported = isEncrypted
-        ? await parseEncryptedImport(content, vaultKey)
-        : parseDecryptedImport(content);
-
       const currentEntries = await loadEncryptedVault(vaultKey);
       const updated = [...currentEntries, ...imported];
       await saveEncryptedVault(updated, vaultKey);
@@ -111,6 +111,31 @@ export default function SettingsScreen() {
     }
   };
 
+  const runImport = async (isEncrypted: boolean) => {
+    try {
+      const content = await pickJsonFileContent();
+      if (content === null) {
+        return;
+      }
+
+      if (isEncrypted) {
+        // Encrypted exports are only decryptable with the PIN they were
+        // exported under — that may not be this installation's current PIN
+        // (e.g. after an uninstall/reinstall, which resets the local salt).
+        setPendingImportContent(content);
+        return;
+      }
+
+      await finishImport(parseDecryptedImport(content));
+    } catch (e) {
+      setDialog({
+        title: "Import failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+    }
+  };
+
   const handleImport = () => {
     setDialog({
       title: "Import Vault",
@@ -120,6 +145,28 @@ export default function SettingsScreen() {
         { label: "Encrypted", onPress: () => runImport(true) },
       ],
     });
+  };
+
+  const handleImportPinSubmit = async (pin: string) => {
+    if (!pendingImportContent) {
+      return;
+    }
+
+    try {
+      const imported = await parseEncryptedImport(pendingImportContent, pin);
+      setPendingImportContent(null);
+      setImportPinError("");
+      await finishImport(imported);
+    } catch (e) {
+      setImportPinError(
+        e instanceof Error ? e.message : "Something went wrong.",
+      );
+    }
+  };
+
+  const cancelImportPin = () => {
+    setPendingImportContent(null);
+    setImportPinError("");
   };
 
   const downloadAndApplyUpdate = async () => {
@@ -302,7 +349,7 @@ export default function SettingsScreen() {
               {isCheckingUpdate ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Ionicons name="refresh" size={20} color={colors.text} />
+                <Ionicons name="refresh" size={24} color={colors.text} />
               )}
               <Text style={[styles.actionLabel, { color: colors.text }]}>
                 {isCheckingUpdate ? "Checking..." : "Check for Updates"}
@@ -318,6 +365,15 @@ export default function SettingsScreen() {
         message={dialog?.message}
         options={dialog?.options ?? []}
         onDismiss={closeDialog}
+      />
+
+      <PinPromptDialog
+        visible={pendingImportContent !== null}
+        title="Enter export PIN"
+        message="This backup is encrypted. Enter the PIN it was exported with."
+        error={importPinError}
+        onSubmit={handleImportPinSubmit}
+        onCancel={cancelImportPin}
       />
     </SafeAreaView>
   );
