@@ -39,7 +39,19 @@ export default function PinSetupScreen() {
     }
   };
 
-  const handleConfirmChange = async (value: string) => {
+  const performSetup = async (confirmedPin: string) => {
+    try {
+      await setupPin(confirmedPin);
+      router.replace("/vault");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to set up PIN.");
+      reset();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmChange = (value: string) => {
     setError("");
     setConfirmPin(value);
 
@@ -53,16 +65,10 @@ export default function PinSetupScreen() {
       return;
     }
 
-    try {
-      setIsSaving(true);
-      await setupPin(pin);
-      router.replace("/vault");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to set up PIN.");
-      reset();
-    } finally {
-      setIsSaving(false);
-    }
+    // Let the filled-in last digit (and the spinner below) actually paint
+    // before setupPin's PBKDF2 work blocks the JS thread.
+    setIsSaving(true);
+    setTimeout(() => performSetup(pin), 0);
   };
 
   return (

@@ -161,6 +161,7 @@ export default function VaultScreen() {
           data={filteredEntries ?? []}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <NeoBrutalCard
               onPress={() => openEntry(item.id)}

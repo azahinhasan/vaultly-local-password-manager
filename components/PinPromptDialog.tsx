@@ -1,6 +1,13 @@
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { NeoBrutalCard } from "./NeoBrutalCard";
 import { PinBoxInput } from "./PinBoxInput";
 
@@ -11,7 +18,7 @@ interface PinPromptDialogProps {
   title: string;
   message?: string;
   error?: string;
-  onSubmit: (pin: string) => void;
+  onSubmit: (pin: string) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -25,23 +32,37 @@ export function PinPromptDialog({
 }: PinPromptDialogProps) {
   const colors = useThemeColors();
   const [pin, setPin] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!visible) {
       setPin("");
+      setIsSubmitting(false);
     }
   }, [visible]);
 
   useEffect(() => {
     if (error) {
       setPin("");
+      setIsSubmitting(false);
     }
   }, [error]);
+
+  const performSubmit = async (value: string) => {
+    try {
+      await onSubmit(value);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleChange = (value: string) => {
     setPin(value);
     if (value.length === PIN_LENGTH) {
-      onSubmit(value);
+      // Let the filled-in last digit (and the spinner below) actually paint
+      // before decryption's PBKDF2 work blocks the JS thread.
+      setIsSubmitting(true);
+      setTimeout(() => performSubmit(value), 0);
     }
   };
 
@@ -67,8 +88,12 @@ export function PinPromptDialog({
                 value={pin}
                 onChangeText={handleChange}
                 autoFocus
+                editable={!isSubmitting}
               />
             </View>
+            {isSubmitting && (
+              <ActivityIndicator style={styles.spinner} color={colors.accent} />
+            )}
             {!!error && (
               <Text style={[styles.error, { color: colors.error }]}>
                 {error}
@@ -113,6 +138,9 @@ const styles = StyleSheet.create({
   },
   pinRow: {
     marginVertical: 8,
+  },
+  spinner: {
+    marginBottom: 4,
   },
   error: {
     fontSize: 13,

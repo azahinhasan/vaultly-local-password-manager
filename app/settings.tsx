@@ -40,6 +40,7 @@ export default function SettingsScreen() {
   const [dialog, setDialog] = useState<{
     title: string;
     message?: string;
+    highlightNote?: string;
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
@@ -83,7 +84,9 @@ export default function SettingsScreen() {
     setDialog({
       title: "Export Vault",
       message:
-        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords. Encrypted exports stay protected, but you'll need to enter the PIN you used to export it when you import this file later — remember that PIN, since there's no way to recover it otherwise.",
+        "Decrypted exports are plain, readable JSON — anyone with the file can read your passwords.",
+      highlightNote:
+        "Encrypted exports stay protected, but you'll need to enter the PIN you used to export it when you import this file later — remember that PIN, since there's no way to recover it otherwise.",
       options: [
         { label: "Decrypted", onPress: () => runExport(false) },
         { label: "Encrypted", onPress: () => runExport(true) },
@@ -167,6 +170,34 @@ export default function SettingsScreen() {
   const cancelImportPin = () => {
     setPendingImportContent(null);
     setImportPinError("");
+  };
+
+  const deleteAllData = async () => {
+    try {
+      await saveEncryptedVault([], vaultKey);
+      setDialog({
+        title: "All data deleted",
+        message: "Your vault is now empty.",
+        options: [{ label: "OK" }],
+      });
+    } catch (e) {
+      setDialog({
+        title: "Delete failed",
+        message: e instanceof Error ? e.message : "Something went wrong.",
+        options: [{ label: "OK" }],
+      });
+    }
+  };
+
+  const handleDeleteAllData = () => {
+    setDialog({
+      title: "Delete all data?",
+      message:
+        "This permanently deletes every entry in your vault — every saved platform, username, and password. This cannot be undone.",
+      options: [
+        { label: "Delete Everything", destructive: true, onPress: deleteAllData },
+      ],
+    });
   };
 
   const downloadAndApplyUpdate = async () => {
@@ -357,12 +388,30 @@ export default function SettingsScreen() {
             </View>
           </NeoBrutalCard>
         </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.error }]}>
+          Danger Zone
+        </Text>
+        <View style={styles.actionList}>
+          <NeoBrutalCard
+            onPress={handleDeleteAllData}
+            backgroundColor={colors.error}
+          >
+            <View style={styles.actionRow}>
+              <Ionicons name="trash" size={20} color={colors.errorText} />
+              <Text style={[styles.actionLabel, { color: colors.errorText }]}>
+                Delete All Data
+              </Text>
+            </View>
+          </NeoBrutalCard>
+        </View>
       </ScrollView>
 
       <AppDialog
         visible={dialog !== null}
         title={dialog?.title ?? ""}
         message={dialog?.message}
+        highlightNote={dialog?.highlightNote}
         options={dialog?.options ?? []}
         onDismiss={closeDialog}
       />

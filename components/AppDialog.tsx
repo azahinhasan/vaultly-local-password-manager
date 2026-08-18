@@ -1,7 +1,10 @@
-import { BORDER_WIDTH } from "@/constants/theme";
+import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { NeoBrutalCard } from "./NeoBrutalCard";
+
+const HIGHLIGHT_COLOR = "#F97316";
+const HIGHLIGHT_TEXT_COLOR = "#FFFFFF";
 
 export interface AppDialogOption {
   label: string;
@@ -13,6 +16,9 @@ interface AppDialogProps {
   visible: boolean;
   title: string;
   message?: string;
+  /** An extra note rendered as an orange callout below `message`, for
+   * warnings that shouldn't be missed (e.g. "remember this PIN"). */
+  highlightNote?: string;
   options: AppDialogOption[];
   onDismiss: () => void;
 }
@@ -21,6 +27,7 @@ export function AppDialog({
   visible,
   title,
   message,
+  highlightNote,
   options,
   onDismiss,
 }: AppDialogProps) {
@@ -41,6 +48,16 @@ export function AppDialog({
               <Text style={[styles.message, { color: colors.subtext }]}>
                 {message}
               </Text>
+            )}
+            {!!highlightNote && (
+              <View
+                style={[
+                  styles.highlightBox,
+                  { backgroundColor: HIGHLIGHT_COLOR },
+                ]}
+              >
+                <Text style={styles.highlightText}>{highlightNote}</Text>
+              </View>
             )}
           </View>
 
@@ -94,6 +111,18 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  highlightBox: {
+    borderRadius: RADIUS - 4,
+    padding: 12,
+    marginTop: 4,
+  },
+  highlightText: {
+    color: HIGHLIGHT_TEXT_COLOR,
+    fontSize: 14,
+    fontWeight: "700",
     textAlign: "center",
     lineHeight: 20,
   },

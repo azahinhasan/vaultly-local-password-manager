@@ -50,15 +50,7 @@ export default function PinUnlockScreen() {
 
   const isLocked = remainingSeconds > 0;
 
-  const handleChange = async (value: string) => {
-    setPin(value);
-    setError("");
-
-    if (value.length !== PIN_LENGTH) {
-      return;
-    }
-
-    setIsChecking(true);
+  const performUnlock = async (value: string) => {
     const result = await unlockWithPin(value);
     setIsChecking(false);
 
@@ -73,6 +65,20 @@ export default function PinUnlockScreen() {
     } else {
       setError("Incorrect PIN. Try again.");
     }
+  };
+
+  const handleChange = (value: string) => {
+    setPin(value);
+    setError("");
+
+    if (value.length !== PIN_LENGTH) {
+      return;
+    }
+
+    // Let the filled-in last digit (and the spinner below) actually paint
+    // before the PIN verification's PBKDF2 work blocks the JS thread.
+    setIsChecking(true);
+    setTimeout(() => performUnlock(value), 0);
   };
 
   return (
