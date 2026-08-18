@@ -1,8 +1,9 @@
 import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PlatformSelect } from "@/components/PlatformSelect";
-import { getPlatformColor, PLATFORMS } from "@/constants/platforms";
+import { getPlatformColor } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
   loadEncryptedVault,
@@ -25,14 +26,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const ALL_PLATFORMS_OPTION = "All";
 const OTHER_PLATFORMS_OPTION = "Other";
-const FILTER_OPTIONS = [
-  ALL_PLATFORMS_OPTION,
-  ...PLATFORMS,
-  OTHER_PLATFORMS_OPTION,
-];
 
 export default function VaultScreen() {
   const { vaultKey } = useAuth();
+  const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
 
@@ -46,6 +43,15 @@ export default function VaultScreen() {
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
+
+  const filterOptions = useMemo(
+    () => [
+      ALL_PLATFORMS_OPTION,
+      ...platforms.map((p) => p.name),
+      OTHER_PLATFORMS_OPTION,
+    ],
+    [platforms],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -67,10 +73,12 @@ export default function VaultScreen() {
       return entries;
     }
     if (platformFilter === OTHER_PLATFORMS_OPTION) {
-      return entries.filter((entry) => !PLATFORMS.includes(entry.platform));
+      return entries.filter(
+        (entry) => !platforms.some((p) => p.name === entry.platform),
+      );
     }
     return entries.filter((entry) => entry.platform === platformFilter);
-  }, [entries, platformFilter]);
+  }, [entries, platformFilter, platforms]);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -140,7 +148,7 @@ export default function VaultScreen() {
           onChange={(value) =>
             setPlatformFilter(value === ALL_PLATFORMS_OPTION ? null : value)
           }
-          options={FILTER_OPTIONS}
+          options={filterOptions}
         />
       )}
 
@@ -176,6 +184,7 @@ export default function VaultScreen() {
                         {
                           backgroundColor: getPlatformColor(
                             item.platform,
+                            platforms,
                             item.color,
                           ),
                           borderColor: colors.border,
@@ -186,7 +195,11 @@ export default function VaultScreen() {
                       style={[
                         styles.platform,
                         {
-                          color: getPlatformColor(item.platform, item.color),
+                          color: getPlatformColor(
+                            item.platform,
+                            platforms,
+                            item.color,
+                          ),
                         },
                       ]}
                       numberOfLines={1}
@@ -200,7 +213,7 @@ export default function VaultScreen() {
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
-                    {item.username}
+                    {item.email || item.username}
                   </Text>
                   <Text
                     style={[styles.password, { color: colors.subtext }]}

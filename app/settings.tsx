@@ -353,6 +353,14 @@ export default function SettingsScreen() {
               </Text>
             </View>
           </NeoBrutalCard>
+          <NeoBrutalCard onPress={() => router.push("/manage-platforms")}>
+            <View style={styles.actionRow}>
+              <Ionicons name="albums" size={20} color={colors.text} />
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                Manage Platforms
+              </Text>
+            </View>
+          </NeoBrutalCard>
           <NeoBrutalCard onPress={handleImport}>
             <View style={styles.actionRow}>
               <Ionicons name="download" size={20} color={colors.text} />

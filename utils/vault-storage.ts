@@ -11,7 +11,9 @@ import * as Crypto from "expo-crypto";
 export interface VaultEntry {
   id: string;
   platform: string;
-  username: string;
+  /** At least one of username/email must be set. */
+  username?: string;
+  email?: string;
   password: string;
   notes?: string;
   /** Custom color for a manually-entered platform; ignored for fixed platforms. */

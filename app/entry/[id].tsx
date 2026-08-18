@@ -2,9 +2,9 @@ import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { PlatformSelect } from "@/components/PlatformSelect";
-import { PLATFORMS } from "@/constants/platforms";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import {
   loadEncryptedVault,
@@ -14,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -30,10 +30,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function EntryFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { vaultKey } = useAuth();
+  const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
 
   const isNew = id === "new";
+  const platformNames = useMemo(() => platforms.map((p) => p.name), [platforms]);
 
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -41,6 +43,7 @@ export default function EntryFormScreen() {
   const [isCustomPlatform, setIsCustomPlatform] = useState(false);
   const [color, setColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -66,9 +69,10 @@ export default function EntryFormScreen() {
           const existing = vault.find((entry) => entry.id === id);
           if (existing) {
             setPlatform(existing.platform);
-            setIsCustomPlatform(!PLATFORMS.includes(existing.platform));
+            setIsCustomPlatform(!platformNames.includes(existing.platform));
             setColor(existing.color);
-            setUsername(existing.username);
+            setUsername(existing.username ?? "");
+            setEmail(existing.email ?? "");
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
           } else {
@@ -77,6 +81,9 @@ export default function EntryFormScreen() {
         }
       })
       .catch(() => setError("Failed to load vault."));
+    // Only re-run when the id being edited changes, not every time the
+    // managed platforms list changes (that would clobber in-progress edits).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultKey, id, isNew]);
 
   if (!vaultKey) {
@@ -88,8 +95,13 @@ export default function EntryFormScreen() {
       return;
     }
 
-    if (!platform || !username.trim() || !password) {
-      setError("Platform, username, and password are required.");
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+
+    if (!platform || !password || (!trimmedUsername && !trimmedEmail)) {
+      setError(
+        "Platform, password, and at least a username or email are required.",
+      );
       return;
     }
 
@@ -104,7 +116,8 @@ export default function EntryFormScreen() {
           {
             id: Crypto.randomUUID(),
             platform,
-            username: username.trim(),
+            ...(trimmedUsername ? { username: trimmedUsername } : {}),
+            ...(trimmedEmail ? { email: trimmedEmail } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
             ...(entryColor ? { color: entryColor } : {}),
@@ -115,7 +128,8 @@ export default function EntryFormScreen() {
             ? {
                 ...entry,
                 platform,
-                username: username.trim(),
+                username: trimmedUsername || undefined,
+                email: trimmedEmail || undefined,
                 password,
                 notes: trimmedNotes || undefined,
                 color: entryColor,
@@ -260,13 +274,15 @@ export default function EntryFormScreen() {
               <PlatformSelect
                 value={platform}
                 onChange={setPlatform}
-                options={PLATFORMS}
+                options={platformNames}
               />
             )}
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.text }]}>Username</Text>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Username (optional)
+            </Text>
             <TextInput
               style={[
                 styles.input,
@@ -278,9 +294,31 @@ export default function EntryFormScreen() {
               ]}
               value={username}
               onChangeText={setUsername}
-              placeholder="Username or Email"
+              placeholder="Username"
               placeholderTextColor={colors.subtext}
               autoCapitalize="none"
+            />
+          </View>
+
+          <View>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Email (optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email address"
+              placeholderTextColor={colors.subtext}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
 

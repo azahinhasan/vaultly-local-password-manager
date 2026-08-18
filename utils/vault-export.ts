@@ -18,8 +18,10 @@ function isValidEntryShape(value: unknown): value is VaultEntry {
   const entry = value as Record<string, unknown>;
   return (
     typeof entry.platform === "string" &&
-    typeof entry.username === "string" &&
     typeof entry.password === "string" &&
+    (entry.username === undefined || typeof entry.username === "string") &&
+    (entry.email === undefined || typeof entry.email === "string") &&
+    (!!entry.username?.toString().trim() || !!entry.email?.toString().trim()) &&
     (entry.notes === undefined || typeof entry.notes === "string") &&
     (entry.color === undefined || typeof entry.color === "string")
   );

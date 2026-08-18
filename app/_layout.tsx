@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/context/AuthContext";
+import { PlatformsProvider } from "@/context/PlatformsContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { Stack } from "expo-router";
@@ -27,7 +28,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <RootStack />
+          <PlatformsProvider>
+            <RootStack />
+          </PlatformsProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

@@ -1,31 +1,27 @@
-// Fixed set of platform choices for the Add/Edit Entry form.
-// Extend this list as more platforms are supported.
-export const PLATFORMS = [
-  "Google",
-  "Facebook",
-  "Microsoft",
-  "Ubisoft",
-  "Steam",
-  "EA",
-  "Sony",
+export interface PlatformEntry {
+  name: string;
+  color: string;
+}
+
+// Seed data — the starting set of managed platforms on first launch.
+// Users can add, rename, recolor, or remove any of these from Settings.
+export const DEFAULT_PLATFORMS: PlatformEntry[] = [
+  { name: "Google", color: "#4285F4" },
+  { name: "Facebook", color: "#6366F1" },
+  { name: "Microsoft", color: "#16A34A" },
+  { name: "Ubisoft", color: "#F97316" },
+  { name: "Steam", color: "#6e7a95" },
+  { name: "EA", color: "#b87700" },
+  { name: "Sony", color: "#003791" },
 ];
 
-// Color tag for each fixed platform, shown as a dot on vault list cards.
-export const PLATFORM_COLORS: Record<string, string> = {
-  Google: "#4285F4",
-  Facebook: "#6366F1",
-  Microsoft: "#16A34A",
-  Ubisoft: "#F97316",
-  Steam: "#6e7a95",
-  EA: "#b87700",
-  Sony: "#003791",
-};
+export const MAX_PLATFORM_NAME_LENGTH = 16;
 
 // Fallback color for entries with no assigned color (custom platforms
 // that didn't pick one).
 export const DEFAULT_PLATFORM_COLOR = "#9CA3AF";
 
-// Selectable palette for custom (manually-entered) platforms.
+// Selectable palette for custom (manually-entered or managed) platforms.
 export const COLOR_PALETTE = [
   "#4285F4", // blue
   "#6366F1", // indigo
@@ -39,15 +35,17 @@ export const COLOR_PALETTE = [
   "#6B7280", // gray
 ];
 
-/** The color dot to show for an entry: fixed platforms always use their
- * assigned color; custom platforms use their chosen color, or the default. */
+/** The color dot to show for an entry: managed platforms use their
+ * assigned color; unmanaged (manually-entered) platforms use their chosen
+ * color, or the default. */
 export function getPlatformColor(
   platform: string,
+  managedPlatforms: PlatformEntry[],
   customColor?: string,
 ): string {
-  const fixedColor = PLATFORM_COLORS[platform];
-  if (fixedColor) {
-    return fixedColor;
+  const managed = managedPlatforms.find((p) => p.name === platform);
+  if (managed) {
+    return managed.color;
   }
   return customColor ?? DEFAULT_PLATFORM_COLOR;
 }
