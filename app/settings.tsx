@@ -13,6 +13,7 @@ import {
   pickJsonFileContent,
 } from "@/utils/vault-export";
 import {
+  isSameEntry,
   loadEncryptedVault,
   saveEncryptedVault,
   VaultEntry,
@@ -97,12 +98,24 @@ export default function SettingsScreen() {
   const finishImport = async (imported: VaultEntry[]) => {
     try {
       const currentEntries = await loadEncryptedVault(vaultKey);
-      const updated = [...currentEntries, ...imported];
-      await saveEncryptedVault(updated, vaultKey);
+      const newEntries = imported.filter(
+        (candidate) =>
+          !currentEntries.some((existing) => isSameEntry(existing, candidate)),
+      );
+      const skipped = imported.length - newEntries.length;
 
+      if (newEntries.length > 0) {
+        const updated = [...currentEntries, ...newEntries];
+        await saveEncryptedVault(updated, vaultKey);
+      }
+
+      const addedMessage = `Added ${newEntries.length} ${newEntries.length === 1 ? "entry" : "entries"}.`;
       setDialog({
-        title: "Import complete",
-        message: `Added ${imported.length} ${imported.length === 1 ? "entry" : "entries"}.`,
+        title: newEntries.length > 0 ? "Import complete" : "Nothing new to import",
+        message:
+          skipped > 0
+            ? `${addedMessage} Skipped ${skipped} already in your vault.`
+            : addedMessage,
         options: [{ label: "OK" }],
       });
     } catch (e) {

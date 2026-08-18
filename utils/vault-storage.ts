@@ -25,6 +25,18 @@ interface EncryptedVault {
   iv: string;
 }
 
+/** True if two entries represent the same credential — same platform,
+ * username, email, and password. Used to skip re-adding entries a user
+ * already has when importing (e.g. importing the same export twice). */
+export function isSameEntry(a: VaultEntry, b: VaultEntry): boolean {
+  return (
+    a.platform === b.platform &&
+    (a.username ?? "") === (b.username ?? "") &&
+    (a.email ?? "") === (b.email ?? "") &&
+    a.password === b.password
+  );
+}
+
 const VAULT_STORAGE_KEY = "encryptedVault";
 const IV_LENGTH = 12;
 
