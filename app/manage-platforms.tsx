@@ -13,7 +13,9 @@ import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -158,70 +160,75 @@ export default function ManagePlatformsScreen() {
         animationType="fade"
         onRequestClose={closeForm}
       >
-        <Pressable style={styles.backdrop} onPress={closeForm}>
-          <NeoBrutalCard>
-            <View style={styles.formContent}>
-              <Text style={[styles.formTitle, { color: colors.text }]}>
-                {form?.mode === "add" ? "Add Platform" : "Edit Platform"}
-              </Text>
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardAvoiding}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={styles.backdrop} onPress={closeForm}>
+            <NeoBrutalCard>
+              <View style={styles.formContent}>
+                <Text style={[styles.formTitle, { color: colors.text }]}>
+                  {form?.mode === "add" ? "Add Platform" : "Edit Platform"}
+                </Text>
 
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    color: colors.text,
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-                value={form?.name ?? ""}
-                onChangeText={(name) =>
-                  setForm((prev) => (prev ? { ...prev, name } : prev))
-                }
-                placeholder="Platform name"
-                placeholderTextColor={colors.subtext}
-                maxLength={MAX_PLATFORM_NAME_LENGTH}
-                autoFocus
-              />
-
-              <ColorSwatchPicker
-                value={form?.color}
-                onChange={(color) => {
-                  if (color) {
-                    setForm((prev) => (prev ? { ...prev, color } : prev));
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: colors.text,
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                    },
+                  ]}
+                  value={form?.name ?? ""}
+                  onChangeText={(name) =>
+                    setForm((prev) => (prev ? { ...prev, name } : prev))
                   }
-                }}
-              />
-
-              {!!formError && (
-                <Text style={[styles.error, { color: colors.error }]}>
-                  {formError}
-                </Text>
-              )}
-
-              <NeoBrutalButton
-                label={isSaving ? "Saving..." : "Save"}
-                onPress={handleSaveForm}
-                disabled={isSaving}
-                style={styles.saveButton}
-              />
-
-              {form?.mode === "edit" && (
-                <NeoBrutalButton
-                  label="Delete"
-                  onPress={handleDeleteRequest}
-                  variant="error"
+                  placeholder="Platform name"
+                  placeholderTextColor={colors.subtext}
+                  maxLength={MAX_PLATFORM_NAME_LENGTH}
+                  autoFocus
                 />
-              )}
 
-              <Pressable onPress={closeForm}>
-                <Text style={[styles.cancelText, { color: colors.accent }]}>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </NeoBrutalCard>
-        </Pressable>
+                <ColorSwatchPicker
+                  value={form?.color}
+                  onChange={(color) => {
+                    if (color) {
+                      setForm((prev) => (prev ? { ...prev, color } : prev));
+                    }
+                  }}
+                />
+
+                {!!formError && (
+                  <Text style={[styles.error, { color: colors.error }]}>
+                    {formError}
+                  </Text>
+                )}
+
+                <NeoBrutalButton
+                  label={isSaving ? "Saving..." : "Save"}
+                  onPress={handleSaveForm}
+                  disabled={isSaving}
+                  style={styles.saveButton}
+                />
+
+                {form?.mode === "edit" && (
+                  <NeoBrutalButton
+                    label="Delete"
+                    onPress={handleDeleteRequest}
+                    variant="error"
+                  />
+                )}
+
+                <Pressable onPress={closeForm}>
+                  <Text style={[styles.cancelText, { color: colors.accent }]}>
+                    Cancel
+                  </Text>
+                </Pressable>
+              </View>
+            </NeoBrutalCard>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <AppDialog
@@ -271,6 +278,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: "800",
+  },
+  modalKeyboardAvoiding: {
+    flex: 1,
   },
   backdrop: {
     flex: 1,

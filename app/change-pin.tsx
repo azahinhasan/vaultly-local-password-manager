@@ -115,7 +115,7 @@ export default function ChangePinScreen() {
     >
       <KeyboardAvoidingView
         style={styles.inner}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <Pressable onPress={() => router.back()} style={styles.cancelButton}>
           <Text style={[styles.cancelText, { color: colors.accent }]}>

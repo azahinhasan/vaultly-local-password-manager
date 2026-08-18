@@ -87,7 +87,7 @@ export default function PinUnlockScreen() {
     >
       <KeyboardAvoidingView
         style={styles.inner}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <Text style={[styles.title, { color: colors.text }]}>
           Enter your PIN

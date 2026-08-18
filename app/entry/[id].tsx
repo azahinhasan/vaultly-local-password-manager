@@ -14,12 +14,15 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -35,7 +38,17 @@ export default function EntryFormScreen() {
   const colors = useThemeColors();
 
   const isNew = id === "new";
-  const platformNames = useMemo(() => platforms.map((p) => p.name), [platforms]);
+  const platformNames = useMemo(
+    () => platforms.map((p) => p.name),
+    [platforms],
+  );
+  const scrollViewRef = useRef<ScrollView>(null);
+  const passwordInputRef = useRef<TextInput>(null);
+  const notesInputRef = useRef<TextInput>(null);
+  const scrollOffset = useRef(0);
+  const contentHeight = useRef(0);
+  const viewportHeight = useRef(0);
+  const scrollAnim = useRef(new Animated.Value(0)).current;
 
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -47,6 +60,9 @@ export default function EntryFormScreen() {
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<
+    "password" | "notes" | null
+  >(null);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -56,6 +72,52 @@ export default function EntryFormScreen() {
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
+
+  useEffect(() => {
+    // scrollTo/scrollToEnd don't expose a duration — driving the offset
+    // through an Animated.Value ourselves is the only way to get a
+    // deliberately smooth (not instant-feeling) scroll.
+    const id = scrollAnim.addListener(({ value }) => {
+      scrollViewRef.current?.scrollTo({ y: value, animated: false });
+    });
+    return () => scrollAnim.removeListener(id);
+  }, [scrollAnim]);
+
+  const focusLowerField = (field: "password" | "notes") => {
+    setFocusedField(field);
+    // Wait a tick so the extra bottom padding (which only applies once
+    // focusedField is set) has actually taken effect — otherwise there's
+    // not yet enough scrollable content to smooth-scroll into.
+    setTimeout(() => {
+      const target = Math.max(
+        0,
+        contentHeight.current - viewportHeight.current,
+      );
+      scrollAnim.setValue(scrollOffset.current);
+      Animated.timing(scrollAnim, {
+        toValue: target,
+        duration: 350,
+        useNativeDriver: false,
+      }).start();
+    }, 50);
+  };
+
+  useEffect(() => {
+    // Android can hide the keyboard (back button, the keyboard's own
+    // dismiss chevron, swipe-down) without actually blurring the native
+    // TextInput underneath — the field stays natively "focused" even
+    // though the keyboard is gone. If we only reset our own JS state here,
+    // tapping that same field again isn't a real focus transition (it
+    // never blurred), so onFocus never fires a second time. Explicitly
+    // blurring both refs keeps native focus state in sync with what the
+    // user actually sees, so the next tap always fires onFocus again.
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setFocusedField(null);
+      passwordInputRef.current?.blur();
+      notesInputRef.current?.blur();
+    });
+    return () => hideSub.remove();
+  }, []);
 
   useEffect(() => {
     if (!vaultKey) {
@@ -91,6 +153,8 @@ export default function EntryFormScreen() {
   }
 
   const handleSave = async () => {
+    setFocusedField(null);
+
     if (!entries) {
       return;
     }
@@ -224,7 +288,26 @@ export default function EntryFormScreen() {
           {isNew ? "Add Entry" : "Edit Entry"}
         </Text>
 
-        <View style={styles.form}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.form,
+            focusedField && styles.formWithKeyboardSpace,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          onScroll={(e) => {
+            scrollOffset.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+          onContentSizeChange={(_width, height) => {
+            contentHeight.current = height;
+          }}
+          onLayout={(e) => {
+            viewportHeight.current = e.nativeEvent.layout.height;
+          }}
+        >
           <View>
             <View style={styles.platformHeader}>
               <Text style={[styles.label, { color: colors.text }]}>
@@ -326,6 +409,7 @@ export default function EntryFormScreen() {
             <Text style={[styles.label, { color: colors.text }]}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
+                ref={passwordInputRef}
                 style={[
                   styles.input,
                   styles.passwordInput,
@@ -341,6 +425,10 @@ export default function EntryFormScreen() {
                 placeholderTextColor={colors.subtext}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                returnKeyType="done"
+                onFocus={() => focusLowerField("password")}
+                onBlur={() => setFocusedField(null)}
+                onSubmitEditing={() => setFocusedField(null)}
               />
               <Pressable
                 onPress={() => setShowPassword((v) => !v)}
@@ -361,6 +449,7 @@ export default function EntryFormScreen() {
               Notes (optional)
             </Text>
             <TextInput
+              ref={notesInputRef}
               style={[
                 styles.input,
                 styles.notesInput,
@@ -376,6 +465,8 @@ export default function EntryFormScreen() {
               placeholderTextColor={colors.subtext}
               multiline
               textAlignVertical="top"
+              onFocus={() => focusLowerField("notes")}
+              onBlur={() => setFocusedField(null)}
             />
           </View>
 
@@ -400,7 +491,7 @@ export default function EntryFormScreen() {
               variant="error"
             />
           )}
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       <AppDialog
@@ -439,8 +530,18 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 12,
   },
+  scrollView: {
+    flex: 1,
+  },
   form: {
     gap: 18,
+    paddingBottom: 24,
+  },
+  // Extra scroll room reserved only while the Password or Notes field is
+  // focused — those sit closest to the keyboard, and without this there's
+  // not enough content below them for the ScrollView to scroll into.
+  formWithKeyboardSpace: {
+    paddingBottom: Platform.OS === "android" ? 260 : 200,
   },
   label: {
     fontSize: 14,
