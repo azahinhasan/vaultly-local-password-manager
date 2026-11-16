@@ -84,7 +84,7 @@ export default function PinSetupScreen() {
         </Text>
         <Text style={[styles.subtitle, { color: colors.subtext }]}>
           {stage === "create"
-            ? `Choose a ${PIN_LENGTH}-digit PIN to protect your vault`
+            ? `Choose a ${PIN_LENGTH}-character PIN to protect your vault`
             : "Enter your PIN again to confirm"}
         </Text>
 

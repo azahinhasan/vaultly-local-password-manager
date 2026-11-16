@@ -18,10 +18,16 @@ import {
   saveEncryptedVault,
   VaultEntry,
 } from "@/utils/vault-storage";
+import {
+  disableBiometric,
+  enableBiometric,
+  isBiometricAvailable,
+  isBiometricEnabled,
+} from "@/utils/biometric";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -50,6 +56,32 @@ export default function SettingsScreen() {
     string | null
   >(null);
   const [importPinError, setImportPinError] = useState("");
+
+  const [biometricOn, setBiometricOn] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  useEffect(() => {
+    isBiometricEnabled().then(setBiometricOn);
+    isBiometricAvailable().then(setBiometricAvailable);
+  }, []);
+
+  const toggleBiometric = async () => {
+    if (!vaultKey) return;
+    try {
+      if (biometricOn) {
+        await disableBiometric();
+        setBiometricOn(false);
+      } else {
+        await enableBiometric(vaultKey);
+        setBiometricOn(true);
+      }
+    } catch {
+      setDialog({
+        title: "Biometric lock",
+        message: "Could not change biometric lock on this device.",
+        options: [{ label: "OK", onPress: closeDialog }],
+      });
+    }
+  };
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -363,6 +395,26 @@ export default function SettingsScreen() {
               <Ionicons name="key" size={20} color={colors.text} />
               <Text style={[styles.actionLabel, { color: colors.text }]}>
                 Change PIN
+              </Text>
+            </View>
+          </NeoBrutalCard>
+          <NeoBrutalCard
+            onPress={
+              biometricAvailable
+                ? toggleBiometric
+                : () =>
+                    setDialog({
+                      title: "Biometric lock",
+                      message:
+                        "Set up a fingerprint or face unlock in your phone's settings first.",
+                      options: [{ label: "OK", onPress: closeDialog }],
+                    })
+            }
+          >
+            <View style={styles.actionRow}>
+              <Ionicons name="finger-print" size={20} color={colors.text} />
+              <Text style={[styles.actionLabel, { color: colors.text }]}>
+                Biometric Lock: {biometricOn ? "On" : "Off"}
               </Text>
             </View>
           </NeoBrutalCard>

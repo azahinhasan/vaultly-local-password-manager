@@ -34,6 +34,10 @@
     "plugins": [
       "expo-router",
       [
+        "expo-local-authentication",
+        { "faceIDPermission": "Allow $(PRODUCT_NAME) to unlock your vault with Face ID." }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/lock.png",

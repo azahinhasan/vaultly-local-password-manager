@@ -13,6 +13,7 @@ import {
     hashPin,
     verifyPin,
 } from "../utils/pin-utils";
+import { disableBiometric, unlockWithBiometricKey } from "../utils/biometric";
 import { loadEncryptedVault, saveEncryptedVault } from "../utils/vault-storage";
 
 interface UnlockResult {
@@ -30,6 +31,7 @@ interface AuthContextType {
   isPinSetup: boolean;
   setupPin: (pin: string) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<UnlockResult>;
+  unlockWithBiometric: () => Promise<boolean>;
   verifyCurrentPin: (pin: string) => Promise<boolean>;
   changePin: (currentPin: string, newPin: string) => Promise<ChangePinResult>;
   isLoading: boolean;
@@ -158,6 +160,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const unlockWithBiometric = async (): Promise<boolean> => {
+    const key = await unlockWithBiometricKey();
+    if (!key) {
+      return false;
+    }
+    setVaultKey(key);
+    setIsAuthenticated(true);
+    return true;
+  };
+
   const verifyCurrentPin = async (pin: string): Promise<boolean> => {
     const pinHash = await SecureStore.getItemAsync("pinHash");
     const pinSalt = await SecureStore.getItemAsync("pinSalt");
@@ -203,6 +215,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync("pinSalt", newSalt);
       await SecureStore.deleteItemAsync("pinFailedAttempts");
       await SecureStore.deleteItemAsync("pinLockedUntil");
+      // The stored biometric key is the old vault key; user re-enables in Settings.
+      await disableBiometric();
 
       setVaultKey(newKey);
       setFailedAttempts(0);
@@ -225,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPinSetup,
         setupPin,
         unlockWithPin,
+        unlockWithBiometric,
         verifyCurrentPin,
         changePin,
         isLoading,

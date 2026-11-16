@@ -134,7 +134,7 @@ export default function ChangePinScreen() {
           {stage === "current"
             ? "Verify it's you before changing your PIN"
             : stage === "create"
-              ? `Choose a new ${PIN_LENGTH}-digit PIN`
+              ? `Choose a new ${PIN_LENGTH}-character PIN`
               : "Enter your new PIN again to confirm"}
         </Text>
 

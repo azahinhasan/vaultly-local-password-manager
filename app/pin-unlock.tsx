@@ -1,12 +1,15 @@
 import { PinBoxInput } from "@/components/PinBoxInput";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import { isBiometricEnabled } from "@/utils/biometric";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
 } from "react-native";
@@ -15,7 +18,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const PIN_LENGTH = 6;
 
 export default function PinUnlockScreen() {
-  const { unlockWithPin, lockedUntil: contextLockedUntil } = useAuth();
+  const {
+    unlockWithPin,
+    unlockWithBiometric,
+    lockedUntil: contextLockedUntil,
+  } = useAuth();
   const router = useRouter();
   const colors = useThemeColors();
 
@@ -47,6 +54,22 @@ export default function PinUnlockScreen() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [lockedUntil]);
+
+  const [hasBiometric, setHasBiometric] = useState(false);
+
+  const tryBiometric = async () => {
+    if (await unlockWithBiometric()) {
+      router.replace("/vault");
+    }
+  };
+
+  useEffect(() => {
+    isBiometricEnabled().then((enabled) => {
+      setHasBiometric(enabled);
+      if (enabled) tryBiometric();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isLocked = remainingSeconds > 0;
 
@@ -113,6 +136,11 @@ export default function PinUnlockScreen() {
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )
         )}
+        {hasBiometric && (
+          <Pressable onPress={tryBiometric} style={styles.bio}>
+            <Ionicons name="finger-print" size={40} color={colors.text} />
+          </Pressable>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -134,6 +162,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "900",
     marginBottom: 8,
+  },
+  bio: {
+    marginTop: 24,
   },
   spinner: {
     marginTop: 8,
