@@ -5,11 +5,10 @@ import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -113,70 +112,67 @@ export default function ChangePinScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <View style={styles.inner}>
         <Pressable onPress={() => router.back()} style={styles.cancelButton}>
           <Text style={[styles.cancelText, { color: colors.accent }]}>
             Cancel
           </Text>
         </Pressable>
 
-        <Text style={[styles.title, { color: colors.text }]}>
-          {stage === "current"
-            ? "Enter current PIN"
-            : stage === "create"
-              ? "Create a new PIN"
-              : "Confirm new PIN"}
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.subtext }]}>
-          {stage === "current"
-            ? "Verify it's you before changing your PIN"
-            : stage === "create"
-              ? `Choose a new ${PIN_LENGTH}-character PIN`
-              : "Enter your new PIN again to confirm"}
-        </Text>
-
-        {stage === "current" && (
-          <PinBoxInput
-            key="current"
-            length={PIN_LENGTH}
-            value={currentPin}
-            onChangeText={handleCurrentChange}
-            autoFocus
-            editable={!isChecking}
-          />
-        )}
-        {stage === "create" && (
-          <PinBoxInput
-            key="create"
-            length={PIN_LENGTH}
-            value={newPin}
-            onChangeText={handleCreateChange}
-            autoFocus
-            editable={!isSaving}
-          />
-        )}
-        {stage === "confirm" && (
-          <PinBoxInput
-            key="confirm"
-            length={PIN_LENGTH}
-            value={confirmPin}
-            onChangeText={handleConfirmChange}
-            autoFocus
-            editable={!isSaving}
-          />
-        )}
-
-        {(isChecking || isSaving) && (
-          <ActivityIndicator style={styles.spinner} color={colors.accent} />
-        )}
-
-        {!!error && (
-          <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-        )}
-      </KeyboardAvoidingView>
+        <PinBoxInput
+          fullScreen
+          key={stage}
+          length={PIN_LENGTH}
+          value={
+            stage === "current"
+              ? currentPin
+              : stage === "create"
+                ? newPin
+                : confirmPin
+          }
+          onChangeText={
+            stage === "current"
+              ? handleCurrentChange
+              : stage === "create"
+                ? handleCreateChange
+                : handleConfirmChange
+          }
+          editable={stage === "current" ? !isChecking : !isSaving}
+          header={
+            <>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {stage === "current"
+                  ? "Enter current PIN"
+                  : stage === "create"
+                    ? "Create a new PIN"
+                    : "Confirm new PIN"}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.subtext }]}>
+                {stage === "current"
+                  ? "Verify it's you before changing your PIN"
+                  : stage === "create"
+                    ? `Choose a new ${PIN_LENGTH}-character PIN`
+                    : "Enter your new PIN again to confirm"}
+              </Text>
+            </>
+          }
+          footer={
+            <>
+              {(isChecking || isSaving) && (
+                <ActivityIndicator
+                  style={styles.spinner}
+                  color={colors.accent}
+                />
+              )}
+              {!!error && (
+                <Text style={[styles.error, { color: colors.error }]}>
+                  {error}
+                </Text>
+              )}
+            </>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -187,10 +183,6 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    gap: 12,
   },
   cancelButton: {
     position: "absolute",

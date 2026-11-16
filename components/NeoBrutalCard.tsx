@@ -16,6 +16,8 @@ interface NeoBrutalCardProps {
   accessibilityLabel?: string;
   hitSlop?: number;
   disabled?: boolean;
+  /** Style for the outer wrapper (e.g. `flex: 1` inside a row). */
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export function NeoBrutalCard({
@@ -30,6 +32,7 @@ export function NeoBrutalCard({
   accessibilityLabel,
   hitSlop,
   disabled,
+  containerStyle,
 }: NeoBrutalCardProps) {
   const colors = useThemeColors();
   const isPressable = !!onPress || !!onLongPress;
@@ -49,7 +52,10 @@ export function NeoBrutalCard({
 
   return (
     <View
-      style={{ position: "relative", marginRight: offset, marginBottom: offset }}
+      style={[
+        { position: "relative", marginRight: offset, marginBottom: offset },
+        containerStyle,
+      ]}
     >
       <View
         style={[

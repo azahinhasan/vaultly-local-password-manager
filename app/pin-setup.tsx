@@ -5,10 +5,9 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -75,47 +74,45 @@ export default function PinSetupScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <Text style={[styles.title, { color: colors.text }]}>
-          {stage === "create" ? "Create a PIN" : "Confirm your PIN"}
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.subtext }]}>
-          {stage === "create"
-            ? `Choose a ${PIN_LENGTH}-character PIN to protect your vault`
-            : "Enter your PIN again to confirm"}
-        </Text>
-
-        {stage === "create" ? (
-          <PinBoxInput
-            key="create"
-            length={PIN_LENGTH}
-            value={pin}
-            onChangeText={handleCreateChange}
-            autoFocus
-            editable={!isSaving}
-          />
-        ) : (
-          <PinBoxInput
-            key="confirm"
-            length={PIN_LENGTH}
-            value={confirmPin}
-            onChangeText={handleConfirmChange}
-            autoFocus
-            editable={!isSaving}
-          />
-        )}
-
-        {isSaving && (
-          <ActivityIndicator style={styles.spinner} color={colors.accent} />
-        )}
-
-        {!!error && (
-          <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-        )}
-      </KeyboardAvoidingView>
+      <View style={styles.inner}>
+        <PinBoxInput
+          fullScreen
+          key={stage}
+          length={PIN_LENGTH}
+          value={stage === "create" ? pin : confirmPin}
+          onChangeText={
+            stage === "create" ? handleCreateChange : handleConfirmChange
+          }
+          editable={!isSaving}
+          header={
+            <>
+              <Text style={[styles.title, { color: colors.text }]}>
+                {stage === "create" ? "Create a PIN" : "Confirm your PIN"}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.subtext }]}>
+                {stage === "create"
+                  ? `Choose a ${PIN_LENGTH}-character PIN to protect your vault`
+                  : "Enter your PIN again to confirm"}
+              </Text>
+            </>
+          }
+          footer={
+            <>
+              {isSaving && (
+                <ActivityIndicator
+                  style={styles.spinner}
+                  color={colors.accent}
+                />
+              )}
+              {!!error && (
+                <Text style={[styles.error, { color: colors.error }]}>
+                  {error}
+                </Text>
+              )}
+            </>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -126,10 +123,6 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    gap: 12,
   },
   title: {
     fontSize: 28,

@@ -9,8 +9,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -114,49 +112,60 @@ export default function PinUnlockScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <NeoBrutalCard
-          radius={18}
-          offset={4}
-          backgroundColor={colors.highlight}
-          style={styles.badge}
-        >
-          <Ionicons name="lock-closed" size={28} color={colors.highlightText} />
-        </NeoBrutalCard>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Enter your PIN
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.subtext }]}>
-          Your vault never leaves this device
-        </Text>
-        <View style={styles.padSpacer} />
-
+      <View style={styles.inner}>
         <PinBoxInput
+          fullScreen
           length={PIN_LENGTH}
           value={pin}
           onChangeText={handleChange}
           editable={!isChecking && !isLocked}
           onBiometric={hasBiometric ? tryBiometric : undefined}
           shakeSignal={shakeSignal}
+          header={
+            <>
+              <NeoBrutalCard
+                radius={18}
+                offset={4}
+                backgroundColor={colors.highlight}
+                style={styles.badge}
+              >
+                <Ionicons
+                  name="lock-closed"
+                  size={28}
+                  color={colors.highlightText}
+                />
+              </NeoBrutalCard>
+              <Text style={[styles.title, { color: colors.text }]}>
+                Enter your PIN
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.subtext }]}>
+                Your vault never leaves this device
+              </Text>
+            </>
+          }
+          footer={
+            <>
+              {isChecking && (
+                <ActivityIndicator
+                  style={styles.spinner}
+                  color={colors.accent}
+                />
+              )}
+              {isLocked ? (
+                <Text style={[styles.error, { color: colors.error }]}>
+                  Too many attempts. Try again in {remainingSeconds}s.
+                </Text>
+              ) : (
+                !!error && (
+                  <Text style={[styles.error, { color: colors.error }]}>
+                    {error}
+                  </Text>
+                )
+              )}
+            </>
+          }
         />
-
-        {isChecking && (
-          <ActivityIndicator style={styles.spinner} color={colors.accent} />
-        )}
-
-        {isLocked ? (
-          <Text style={[styles.error, { color: colors.error }]}>
-            Too many attempts. Try again in {remainingSeconds}s.
-          </Text>
-        ) : (
-          !!error && (
-            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-          )
-        )}
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -167,10 +176,6 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    gap: 8,
   },
   badge: {
     width: 64,
@@ -186,9 +191,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  padSpacer: {
-    height: 16,
   },
   spinner: {
     marginTop: 8,
