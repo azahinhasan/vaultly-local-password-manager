@@ -81,3 +81,32 @@ test("pwned range parsing", () => {
   // padding entries (count 0) are not hits
   assert.equal(countInRange(body, "FFFF0000000000000000000000000000000"), 0);
 });
+
+import { PLATFORM_TARGETS } from "../constants/platforms.ts";
+import { matchesTarget, normalizeSite, rankForTarget } from "./autofill-match.ts";
+
+test("autofill matching", () => {
+  const T = PLATFORM_TARGETS;
+  const ig = { platform: "Instagram" };
+  assert.equal(normalizeSite("https://www.Instagram.com/login?x=1"), "instagram.com");
+  // browser page, exact + subdomain
+  assert.ok(matchesTarget(ig, { packageName: "com.android.chrome", webDomain: "instagram.com" }, T));
+  assert.ok(matchesTarget(ig, { packageName: "com.android.chrome", webDomain: "www.instagram.com" }, T));
+  // native app by package
+  assert.ok(matchesTarget(ig, { packageName: "com.instagram.android", webDomain: null }, T));
+  // lookalike / other site must NOT match
+  assert.ok(!matchesTarget(ig, { packageName: "com.android.chrome", webDomain: "instagram.com.evil.io" }, T));
+  assert.ok(!matchesTarget(ig, { packageName: "com.android.chrome", webDomain: "notinstagram.com" }, T));
+  assert.ok(!matchesTarget(ig, { packageName: "com.facebook.orca", webDomain: null }, T));
+  // Facebook entry covers Messenger
+  assert.ok(matchesTarget({ platform: "Facebook" }, { packageName: "com.facebook.orca", webDomain: null }, T));
+  // custom website / package on the entry itself
+  const custom = { platform: "MyBank", website: "https://bank.example.org/login" };
+  assert.ok(matchesTarget(custom, { packageName: null, webDomain: "secure.bank.example.org" }, T));
+  const app = { platform: "Corp", website: "com.corp.app" };
+  assert.ok(matchesTarget(app, { packageName: "com.corp.app", webDomain: null }, T));
+  // ranking
+  const r = rankForTarget([{ platform: "Netflix" }, ig], { packageName: null, webDomain: "instagram.com" }, T);
+  assert.deepEqual(r.matches, [ig]);
+  assert.equal(r.others.length, 1);
+});

@@ -58,6 +58,7 @@ export default function EntryFormScreen() {
   const [platform, setPlatform] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -87,6 +88,7 @@ export default function EntryFormScreen() {
             setPlatform(existing.platform);
             setUsername(existing.username ?? "");
             setEmail(existing.email ?? "");
+            setWebsite(existing.website ?? "");
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
           } else {
@@ -171,6 +173,7 @@ export default function EntryFormScreen() {
 
     const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
+    const trimmedWebsite = website.trim();
     const trimmedNotes = notes.trim();
     const updated: VaultEntry[] = isNew
       ? [
@@ -180,6 +183,7 @@ export default function EntryFormScreen() {
             platform,
             ...(trimmedUsername ? { username: trimmedUsername } : {}),
             ...(trimmedEmail ? { email: trimmedEmail } : {}),
+            ...(trimmedWebsite ? { website: trimmedWebsite } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
           },
@@ -191,6 +195,7 @@ export default function EntryFormScreen() {
                 platform,
                 username: trimmedUsername || undefined,
                 email: trimmedEmail || undefined,
+                website: trimmedWebsite || undefined,
                 password,
                 notes: trimmedNotes || undefined,
               }
@@ -338,6 +343,18 @@ export default function EntryFormScreen() {
               onChangeText={setEmail}
               placeholder="Email address"
               keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View>
+            {labelRow("Website or app", "Optional · for autofill")}
+            <BrutalTextField
+              value={website}
+              onChangeText={setWebsite}
+              placeholder="e.g. instagram.com or com.instagram.android"
+              keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
             />

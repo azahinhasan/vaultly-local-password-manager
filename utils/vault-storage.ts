@@ -16,6 +16,8 @@ export interface VaultEntry {
   email?: string;
   password: string;
   notes?: string;
+  /** Website domain or Android app package this login is for, used by autofill. */
+  website?: string;
   /** Custom color for a manually-entered platform; ignored for fixed platforms. */
   color?: string;
 }

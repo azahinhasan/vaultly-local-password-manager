@@ -61,3 +61,38 @@ export function monogramColor(name: string): string {
   }
   return `hsl(${hash % 360}, 85%, 78%)`;
 }
+
+// Built-in sites/apps per platform, used by autofill. Best effort: apps can
+// change package names, and users can add their own via an entry's
+// "Website or app" field.
+export const PLATFORM_TARGETS: Record<
+  string,
+  { domains: string[]; packages: string[] }
+> = {
+  Facebook: { domains: ["facebook.com", "messenger.com", "fb.com"], packages: ["com.facebook.katana", "com.facebook.orca", "com.facebook.lite"] },
+  Instagram: { domains: ["instagram.com"], packages: ["com.instagram.android"] },
+  X: { domains: ["x.com", "twitter.com"], packages: ["com.twitter.android"] },
+  TikTok: { domains: ["tiktok.com"], packages: ["com.zhiliaoapp.musically", "com.ss.android.ugc.trill"] },
+  Snapchat: { domains: ["snapchat.com"], packages: ["com.snapchat.android"] },
+  LinkedIn: { domains: ["linkedin.com"], packages: ["com.linkedin.android"] },
+  Reddit: { domains: ["reddit.com"], packages: ["com.reddit.frontpage"] },
+  Pinterest: { domains: ["pinterest.com"], packages: ["com.pinterest"] },
+  Google: { domains: ["google.com", "gmail.com"], packages: ["com.google.android.gm", "com.google.android.apps.docs"] },
+  GitHub: { domains: ["github.com"], packages: ["com.github.android"] },
+  Microsoft: { domains: ["microsoft.com", "live.com", "outlook.com", "office.com", "microsoftonline.com"], packages: ["com.microsoft.office.outlook"] },
+  Slack: { domains: ["slack.com"], packages: ["com.Slack"] },
+  Notion: { domains: ["notion.so"], packages: ["notion.id"] },
+  Zoom: { domains: ["zoom.us"], packages: ["us.zoom.videomeetings"] },
+  Dropbox: { domains: ["dropbox.com"], packages: ["com.dropbox.android"] },
+  PayPal: { domains: ["paypal.com"], packages: ["com.paypal.android.p2pmobile"] },
+  Wise: { domains: ["wise.com"], packages: ["com.transferwise.android"] },
+  Binance: { domains: ["binance.com"], packages: ["com.binance.dev"] },
+  Stripe: { domains: ["stripe.com"], packages: ["com.stripe.android.dashboard"] },
+  Netflix: { domains: ["netflix.com"], packages: ["com.netflix.mediaclient"] },
+  Spotify: { domains: ["spotify.com"], packages: ["com.spotify.music"] },
+  YouTube: { domains: ["youtube.com"], packages: ["com.google.android.youtube"] },
+  Steam: { domains: ["steampowered.com", "steamcommunity.com"], packages: ["com.valvesoftware.android.steam.community"] },
+  Amazon: { domains: ["amazon.com"], packages: ["com.amazon.mShop.android.shopping"] },
+  eBay: { domains: ["ebay.com"], packages: ["com.ebay.mobile"] },
+  Alibaba: { domains: ["alibaba.com", "aliexpress.com"], packages: ["com.alibaba.aliexpresshd"] },
+};

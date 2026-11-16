@@ -104,7 +104,11 @@ export function PinBoxInput({
         {footer}
       </View>
 
+      {/* collapsable={false}: the dim-while-checking opacity would otherwise
+          flip this view between merged and real, which crashes Fabric
+          ("child already has a parent"). */}
       <View
+        collapsable={false}
         style={[
           styles.pad,
           fullScreen && styles.padFull,

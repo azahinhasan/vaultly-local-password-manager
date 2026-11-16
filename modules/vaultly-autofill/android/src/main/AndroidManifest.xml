@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <application>
+    <!-- Android calls this when the user taps a login field in any app/browser. -->
+    <service
+      android:name=".VaultlyAutofillService"
+      android:label="Vaultly"
+      android:exported="true"
+      android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.autofill.AutofillService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.autofill"
+        android:resource="@xml/vaultly_autofill_service" />
+    </service>
+
+    <!-- Unlock + pick screen. Renders the "VaultlyAutofill" React component and
+         returns the chosen login to Android as the autofill result. -->
+    <activity
+      android:name=".VaultlyAutofillActivity"
+      android:exported="false"
+      android:excludeFromRecents="true"
+      android:label="Vaultly"
+      android:launchMode="standard"
+      android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|locale|layoutDirection|fontScale|smallestScreenSize|density"
+      android:windowSoftInputMode="adjustResize"
+      android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+  </application>
+</manifest>

@@ -30,6 +30,11 @@ import {
   isBiometricAvailable,
   isBiometricEnabled,
 } from "@/utils/biometric";
+import {
+  autofillAvailable,
+  isAutofillEnabled,
+  openAutofillSettings,
+} from "@/modules/vaultly-autofill";
 import { pwnedCount } from "@/utils/breach";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
@@ -38,6 +43,7 @@ import * as Updates from "expo-updates";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -73,6 +79,16 @@ export default function SettingsScreen() {
   >(null);
   const [importPinError, setImportPinError] = useState("");
   const [isCheckingBreaches, setIsCheckingBreaches] = useState(false);
+  const [autofillOn, setAutofillOn] = useState(false);
+
+  // Re-read when returning from Android's autofill settings screen.
+  useEffect(() => {
+    setAutofillOn(isAutofillEnabled());
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") setAutofillOn(isAutofillEnabled());
+    });
+    return () => sub.remove();
+  }, []);
   const [erasePinOpen, setErasePinOpen] = useState(false);
   const [erasePinError, setErasePinError] = useState("");
 
@@ -544,6 +560,16 @@ export default function SettingsScreen() {
               label="Hide in app switcher"
             />,
           )}
+          {autofillAvailable &&
+            row(
+              "key-outline",
+              "Autofill",
+              openAutofillSettings,
+              <Text style={[styles.value, { color: autofillOn ? colors.success : colors.subtext }]}>
+                {autofillOn ? "On" : "Set up"}
+              </Text>,
+              "Fill logins in Chrome and other apps",
+            )}
           {row(
             "alert-circle-outline",
             "Breach alerts",

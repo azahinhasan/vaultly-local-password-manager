@@ -45,3 +45,7 @@ plan.md
 # generated native folders
 /ios
 /android
+
+# native module build output (Gradle)
+modules/*/android/build/
+modules/*/android/.gradle/
