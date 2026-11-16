@@ -39,6 +39,7 @@ class VaultlyAutofillModule : Module() {
         "mode" to activity.mode,
         "packageName" to activity.targetPackage,
         "webDomain" to activity.targetDomain,
+        "usernameKind" to activity.usernameKind,
         "username" to activity.saveUsername,
         "password" to activity.savePassword
       )

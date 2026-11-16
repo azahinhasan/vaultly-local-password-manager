@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
   },
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   content: {
-    padding: 24,
+    padding: 16,
     gap: 10,
   },
   themeGrid: {

@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
   },
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   list: {
-    padding: 24,
+    padding: 16,
     gap: 14,
   },
   row: {

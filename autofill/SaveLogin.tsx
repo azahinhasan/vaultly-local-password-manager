@@ -2,6 +2,7 @@ import {
   BrutalTextField,
   useSnackbar,
 } from "@/components/Brutal";
+import { KeyboardScroll } from "@/components/KeyboardScroll";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { OTHER_CATEGORY, PLATFORM_TARGETS } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +11,8 @@ import { useThemeColors } from "@/hooks/use-theme-colors";
 import { cancelAutofill } from "@/modules/vaultly-autofill";
 import {
   FillTarget,
+  classifyIdentifier,
+  FieldKind,
   findExistingEntry,
   guessPlatformName,
 } from "@/utils/autofill-match";
@@ -24,7 +27,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -39,10 +41,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export function SaveLogin({
   target,
   username: typedUsername,
+  usernameKind,
   password: typedPassword,
 }: {
   target: FillTarget;
   username: string;
+  usernameKind: FieldKind | null;
   password: string;
 }) {
   const { vaultKey } = useAuth();
@@ -116,12 +120,17 @@ export function SaveLogin({
           }
         }
         const u = username.trim();
+        // Phone, email or username: trust the form field, else look at the value.
+        const kind =
+          usernameKind === "phone" || usernameKind === "email"
+            ? usernameKind
+            : classifyIdentifier(u);
         updated = [
           ...entries,
           {
             id: Crypto.randomUUID(),
             platform: name,
-            ...(u.includes("@") ? { email: u } : u ? { username: u } : {}),
+            ...(!u ? {} : kind === "phone" ? { phone: u } : kind === "email" ? { email: u } : { username: u }),
             password,
             ...(notes.trim() ? { notes: notes.trim() } : {}),
             ...(site ? { website: site } : {}),
@@ -162,7 +171,7 @@ export function SaveLogin({
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+      <KeyboardScroll contentContainerStyle={styles.form}>
         {!!existing && (
           <View style={[styles.notice, { borderColor: colors.border, backgroundColor: colors.highlight }]}>
             <Ionicons name="information-circle" size={20} color={colors.highlightText} />
@@ -188,11 +197,11 @@ export function SaveLogin({
         )}
 
         <View>
-          <Text style={[styles.label, { color: colors.text }]}>Username or email</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Username, email or phone</Text>
           <BrutalTextField
             value={username}
             onChangeText={setUsername}
-            placeholder="Username"
+            placeholder="Username, email or phone"
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -240,7 +249,7 @@ export function SaveLogin({
         </View>
 
         {!!error && <Text style={[styles.error, { color: colors.error }]}>{error}</Text>}
-      </ScrollView>
+      </KeyboardScroll>
 
       <View style={styles.actions}>
         {unchanged ? (
@@ -262,12 +271,12 @@ export function SaveLogin({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 24, paddingBottom: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8 },
   headerText: { flexShrink: 1, gap: 2 },
   title: { fontSize: 26, fontWeight: "900" },
   subtitle: { fontSize: 14, fontWeight: "600" },
   cancel: { fontSize: 16, fontWeight: "800" },
-  form: { padding: 24, gap: 16 },
+  form: { padding: 16, gap: 16 },
   label: { fontSize: 14, fontWeight: "800", marginBottom: 6 },
   labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   labelInRow: { marginBottom: 0 },
@@ -276,5 +285,5 @@ const styles = StyleSheet.create({
   notice: { flexDirection: "row", gap: 10, borderWidth: 2, borderRadius: 14, padding: 12, alignItems: "center" },
   noticeText: { flex: 1, fontSize: 13, fontWeight: "700", lineHeight: 18 },
   error: { fontSize: 13, fontWeight: "700" },
-  actions: { padding: 24, paddingTop: 8 },
+  actions: { padding: 16, paddingTop: 8 },
 });

@@ -139,3 +139,32 @@ test("search also matches a saved website", () => {
   const e = [{ platform: "MyBank", website: "secure.bank.example.org" }, { platform: "Other" }];
   assert.equal(filterEntries(e, "bank.example", null, DEFAULT_PLATFORMS).length, 1);
 });
+
+import { classifyIdentifier, pickIdentifier } from "./autofill-match.ts";
+
+test("phone as a login identifier", () => {
+  assert.equal(classifyIdentifier("a@b.com"), "email");
+  assert.equal(classifyIdentifier("+1 (555) 010-9999"), "phone");
+  assert.equal(classifyIdentifier("01712345678"), "phone");
+  assert.equal(classifyIdentifier("zahin123"), "username");
+  assert.equal(classifyIdentifier("12345"), "username"); // too short to be a phone
+
+  const e = { username: "zahin", email: "z@x.com", phone: "+8801712345678" };
+  assert.equal(pickIdentifier(e, "phone"), "+8801712345678");
+  assert.equal(pickIdentifier(e, "email"), "z@x.com");
+  assert.equal(pickIdentifier(e, "username"), "zahin");
+  assert.equal(pickIdentifier(e, "any"), "zahin");
+  assert.equal(pickIdentifier({ phone: "555" }, "email"), "555"); // falls back, never empty
+  assert.equal(pickIdentifier({}, "phone"), "");
+
+  // existing-account detection ignores phone formatting
+  const T = PLATFORM_TARGETS;
+  const entries = [{ platform: "Facebook", phone: "+880 1712-345678", password: "p" }];
+  const fb = { webDomain: "m.facebook.com", packageName: null };
+  assert.ok(findExistingEntry(entries, fb, "+8801712345678", T));
+  assert.equal(findExistingEntry(entries, fb, "+8801799999999", T), undefined);
+
+  // search finds a login by its phone number
+  const a = { id: "1", platform: "X", password: "p", phone: "+88017" };
+  assert.equal(filterEntries([a], "8801", null, DEFAULT_PLATFORMS).length, 1);
+});

@@ -5,6 +5,7 @@ interface Searchable {
   username?: string;
   email?: string;
   website?: string;
+  phone?: string;
 }
 
 export function categoryOf(
@@ -29,7 +30,8 @@ export function filterEntries<T extends Searchable>(
         e.platform.toLowerCase().includes(q) ||
         (e.username ?? "").toLowerCase().includes(q) ||
         (e.email ?? "").toLowerCase().includes(q) ||
-        (e.website ?? "").toLowerCase().includes(q)),
+        (e.website ?? "").toLowerCase().includes(q) ||
+        (e.phone ?? "").toLowerCase().includes(q)),
   );
 }
 

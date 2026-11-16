@@ -1,14 +1,13 @@
 import { PinBoxInput } from "@/components/PinBoxInput";
-import { BORDER_WIDTH } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   View,
@@ -16,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const PIN_LENGTH = 6;
+const appIcon = require("@/assets/images/lock-icon.png");
 
 export default function PinUnlockScreen() {
   const {
@@ -123,21 +123,7 @@ export default function PinUnlockScreen() {
           shakeSignal={shakeSignal}
           header={
             <>
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: colors.highlight,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="lock-closed"
-                  size={28}
-                  color={colors.highlightText}
-                />
-              </View>
+              <Image source={appIcon} style={styles.badge} resizeMode="contain" />
               <Text style={[styles.title, { color: colors.text }]}>
                 Enter your PIN
               </Text>
@@ -180,13 +166,10 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
   },
+  // Transparent shield icon (assets/images/lock-icon.png, 419x544).
   badge: {
-    borderWidth: BORDER_WIDTH,
-    borderRadius: 18,
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 84,
+    height: 108,
     marginBottom: 12,
   },
   title: {

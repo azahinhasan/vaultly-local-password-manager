@@ -14,6 +14,8 @@ export interface VaultEntry {
   /** Both are optional. */
   username?: string;
   email?: string;
+  /** Some sites log in with a phone number instead of (or as well as) a username/email. */
+  phone?: string;
   password: string;
   notes?: string;
   /** Website domain or Android app package this login is for, used by autofill. */
@@ -35,6 +37,7 @@ export function isSameEntry(a: VaultEntry, b: VaultEntry): boolean {
     a.platform === b.platform &&
     (a.username ?? "") === (b.username ?? "") &&
     (a.email ?? "") === (b.email ?? "") &&
+    (a.phone ?? "") === (b.phone ?? "") &&
     a.password === b.password
   );
 }

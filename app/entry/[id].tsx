@@ -5,6 +5,7 @@ import {
   Monogram,
   useSnackbar,
 } from "@/components/Brutal";
+import { KeyboardScroll } from "@/components/KeyboardScroll";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { PlatformSheet } from "@/components/PlatformSheet";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
@@ -32,7 +33,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -58,6 +58,7 @@ export default function EntryFormScreen() {
   const [platform, setPlatform] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [website, setWebsite] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
@@ -88,6 +89,7 @@ export default function EntryFormScreen() {
             setPlatform(existing.platform);
             setUsername(existing.username ?? "");
             setEmail(existing.email ?? "");
+            setPhone(existing.phone ?? "");
             setWebsite(existing.website ?? "");
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
@@ -173,6 +175,7 @@ export default function EntryFormScreen() {
 
     const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
     const trimmedWebsite = website.trim();
     const trimmedNotes = notes.trim();
     const updated: VaultEntry[] = isNew
@@ -183,6 +186,7 @@ export default function EntryFormScreen() {
             platform,
             ...(trimmedUsername ? { username: trimmedUsername } : {}),
             ...(trimmedEmail ? { email: trimmedEmail } : {}),
+            ...(trimmedPhone ? { phone: trimmedPhone } : {}),
             ...(trimmedWebsite ? { website: trimmedWebsite } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
@@ -195,6 +199,7 @@ export default function EntryFormScreen() {
                 platform,
                 username: trimmedUsername || undefined,
                 email: trimmedEmail || undefined,
+                phone: trimmedPhone || undefined,
                 website: trimmedWebsite || undefined,
                 password,
                 notes: trimmedNotes || undefined,
@@ -290,10 +295,9 @@ export default function EntryFormScreen() {
           </Text>
         </View>
 
-        <ScrollView
+        <KeyboardScroll
           style={styles.scroll}
           contentContainerStyle={styles.form}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View>
@@ -344,6 +348,17 @@ export default function EntryFormScreen() {
               placeholder="Email address"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View>
+            {labelRow("Phone", "Optional")}
+            <BrutalTextField
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Phone number"
+              keyboardType="phone-pad"
               autoCorrect={false}
             />
           </View>
@@ -473,7 +488,7 @@ export default function EntryFormScreen() {
           {!!error && (
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )}
-        </ScrollView>
+        </KeyboardScroll>
 
         <View style={styles.actions}>
           <NeoBrutalButton
@@ -530,7 +545,7 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 16,
     gap: 12,
   },

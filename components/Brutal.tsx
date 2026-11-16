@@ -21,6 +21,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import { useScrollToFocused } from "./KeyboardScroll";
 import { NeoBrutalCard } from "./NeoBrutalCard";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
@@ -104,6 +105,7 @@ export const BrutalTextField = forwardRef<
 ) {
   const colors = useThemeColors();
   const [focused, setFocused] = useState(false);
+  const scrollToFocused = useScrollToFocused();
   const edge = invalid ? colors.error : focused ? colors.accent : colors.border;
 
   return (
@@ -130,6 +132,7 @@ export const BrutalTextField = forwardRef<
             {...props}
             onFocus={(e) => {
               setFocused(true);
+              scrollToFocused?.();
               onFocus?.(e);
             }}
             onBlur={(e) => {
@@ -194,10 +197,13 @@ export function Monogram({
   name,
   color,
   size = 44,
+  borderColor,
 }: {
   name: string;
   color?: string;
   size?: number;
+  /** Overrides the outline, e.g. red for a breached password. */
+  borderColor?: string;
 }) {
   const colors = useThemeColors();
   return (
@@ -207,7 +213,7 @@ export function Monogram({
         height: size,
         borderRadius: 12,
         borderWidth: BORDER_WIDTH,
-        borderColor: colors.border,
+        borderColor: borderColor ?? colors.border,
         backgroundColor: color ?? monogramColor(name),
         alignItems: "center",
         justifyContent: "center",
@@ -332,8 +338,8 @@ const styles = StyleSheet.create({
   },
   snackbar: {
     position: "absolute",
-    left: 24,
-    right: 24,
+    left: 16,
+    right: 16,
     bottom: 96,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS,

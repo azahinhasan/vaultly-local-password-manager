@@ -8,7 +8,7 @@ import { PlatformsProvider, usePlatforms } from "@/context/PlatformsContext";
 import { SecurityProvider } from "@/context/SecurityContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
-import { FillTarget, rankForTarget } from "@/utils/autofill-match";
+import { FieldKind, FillTarget, pickIdentifier, rankForTarget } from "@/utils/autofill-match";
 import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
 import { filterEntries, usedCategories } from "@/utils/vault-filter";
 import { loadEncryptedVault, VaultEntry } from "@/utils/vault-storage";
@@ -83,10 +83,11 @@ function AutofillFlow() {
     <SaveLogin
       target={target}
       username={request?.username ?? ""}
+      usernameKind={request?.usernameKind ?? null}
       password={request?.password ?? ""}
     />
   ) : (
-    <PickLogin target={target} />
+    <PickLogin target={target} kind={request?.usernameKind ?? null} />
   );
 }
 
@@ -169,7 +170,7 @@ type Row =
   | { kind: "header"; key: string; title: string }
   | { kind: "entry"; key: string; entry: VaultEntry };
 
-function PickLogin({ target }: { target: FillTarget }) {
+function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | null }) {
   const { vaultKey } = useAuth();
   const { platforms } = usePlatforms();
   const colors = useThemeColors();
@@ -228,10 +229,11 @@ function PickLogin({ target }: { target: FillTarget }) {
     }
     const { entry } = item;
     const color = platforms.find((p) => p.name === entry.platform)?.color;
-    const login = entry.username || entry.email || "No username";
+    const identifier = pickIdentifier(entry, kind);
+    const login = identifier || "No username";
     return (
       <NeoBrutalCard
-        onPress={() => finishWithCredentials(entry.username || entry.email || "", entry.password)}
+        onPress={() => finishWithCredentials(identifier, entry.password)}
         accessibilityLabel={`Fill ${entry.platform}, ${login}`}
       >
         <View style={styles.row}>
@@ -267,7 +269,7 @@ function PickLogin({ target }: { target: FillTarget }) {
         <BrutalTextField
           value={query}
           onChangeText={setQuery}
-          placeholder="Search by platform, username or email"
+          placeholder="Search by platform, username, email or phone"
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
@@ -317,17 +319,17 @@ function Message({ title, body }: { title: string; body: string }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
-  cancel: { position: "absolute", top: 24, left: 24, zIndex: 1 },
+  cancel: { position: "absolute", top: 24, left: 16, zIndex: 1 },
   cancelText: { fontSize: 16, fontWeight: "800" },
   title: { fontSize: 26, fontWeight: "900" },
   subtitle: { fontSize: 14, fontWeight: "600", textAlign: "center" },
   error: { fontWeight: "700", textAlign: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 24, paddingBottom: 8 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 24, paddingBottom: 8 },
   headerText: { flexShrink: 1, gap: 2 },
-  list: { padding: 24, gap: 12 },
-  filters: { paddingHorizontal: 24, gap: 12 },
+  list: { padding: 16, gap: 12 },
+  filters: { paddingHorizontal: 16, gap: 12 },
   searchIcon: { marginRight: 10 },
-  chips: { gap: 8, paddingRight: 24 },
+  chips: { gap: 8, paddingRight: 16 },
   section: { fontSize: 13, fontWeight: "800", marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   rowText: { flex: 1, gap: 2 },

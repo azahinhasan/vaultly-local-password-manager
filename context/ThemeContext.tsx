@@ -8,11 +8,13 @@ import {
 } from "react";
 import { useColorScheme } from "react-native";
 import {
+  DARK_MODES,
+  FIXED_THEMES,
   systemDarkTheme,
   systemLightTheme,
+  THEME_OPTIONS,
   ThemeMode,
   ThemeTokens,
-  warmTheme,
 } from "../constants/theme";
 
 const STORAGE_KEY = "themeMode";
@@ -27,12 +29,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 function isThemeMode(value: string): value is ThemeMode {
-  return (
-    value === "system" ||
-    value === "light" ||
-    value === "dark" ||
-    value === "warm"
-  );
+  return THEME_OPTIONS.some((o) => o.mode === value);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -53,13 +50,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const isDark =
-    mode === "dark" || (mode === "system" && systemScheme === "dark");
+    DARK_MODES.includes(mode) || (mode === "system" && systemScheme === "dark");
   const tokens =
-    mode === "warm"
-      ? warmTheme
-      : isDark
-        ? systemDarkTheme
-        : systemLightTheme;
+    FIXED_THEMES[mode] ?? (isDark ? systemDarkTheme : systemLightTheme);
 
   return (
     <ThemeContext.Provider value={{ mode, setMode, tokens, isDark }}>

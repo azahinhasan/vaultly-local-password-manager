@@ -43,8 +43,9 @@ export default function VaultScreen() {
   const [snackbar, showSnackbar] = useSnackbar();
   const { breachAlerts } = useSecurity();
 
-  // entry id -> times its password was seen in known breaches (only > 0 kept)
-  const [breaches, setBreaches] = useState<Record<string, number>>({});
+  // Passwords found in known breaches. Keyed by the password itself (not the
+  // entry), so editing an entry's password can't leave an old warning behind.
+  const [breached, setBreached] = useState<Set<string>>(new Set());
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -88,7 +89,7 @@ export default function VaultScreen() {
   // leaves that entry unmarked; results are cached per session in breach.ts.
   useEffect(() => {
     if (!breachAlerts || !entries) {
-      setBreaches({});
+      setBreached(new Set());
       return;
     }
     let cancelled = false;
@@ -97,7 +98,7 @@ export default function VaultScreen() {
         try {
           const count = await pwnedCount(entry.password);
           if (cancelled) return;
-          if (count > 0) setBreaches((b) => ({ ...b, [entry.id]: count }));
+          if (count > 0) setBreached((prev) => new Set(prev).add(entry.password));
         } catch {
           return; // service unreachable: stop quietly, retry next time
         }
@@ -228,23 +229,38 @@ export default function VaultScreen() {
               (p) => p.name === item.platform,
             )?.color;
             const isRevealed = !!revealed[item.id];
+            const isBreached = breached.has(item.password);
             return (
               <NeoBrutalCard onPress={() => openEntry(item.id)}>
                 <View style={styles.cardInner}>
-                  <Monogram name={item.platform} color={platformColor} />
+                  <Monogram
+                    name={item.platform}
+                    color={platformColor}
+                    borderColor={isBreached ? colors.error : undefined}
+                  />
                   <View style={styles.cardText}>
-                    <Text
-                      style={[styles.platform, { color: colors.text }]}
-                      numberOfLines={1}
-                    >
-                      {item.platform}
-                    </Text>
+                    <View style={styles.titleRow}>
+                      <Text
+                        style={[styles.platform, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {item.platform}
+                      </Text>
+                      {isBreached && (
+                        <Ionicons
+                          name="warning"
+                          size={17}
+                          color={colors.error}
+                          accessibilityLabel="Password found in a data breach. Open to see details."
+                        />
+                      )}
+                    </View>
                     <Text
                       style={[styles.username, { color: colors.subtext }]}
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
-                      {item.username || item.email || "No username"}
+                      {item.username || item.email || item.phone || "No username"}
                     </Text>
                     <Text
                       style={[styles.password, { color: colors.text }]}
@@ -252,21 +268,6 @@ export default function VaultScreen() {
                     >
                       {isRevealed ? item.password : "••••••••••"}
                     </Text>
-                    {!!breaches[item.id] && (
-                      <View style={styles.breachRow}>
-                        <Ionicons
-                          name="warning"
-                          size={13}
-                          color={colors.error}
-                        />
-                        <Text
-                          style={[styles.breachText, { color: colors.error }]}
-                          numberOfLines={1}
-                        >
-                          Found in breaches ({breaches[item.id].toLocaleString()}×)
-                        </Text>
-                      </View>
-                    )}
                   </View>
                   <BrutalIconButton
                     icon={isRevealed ? "eye-off-outline" : "eye-outline"}
@@ -309,7 +310,7 @@ export default function VaultScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 16,
     gap: 14,
   },
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
   },
   chips: {
     gap: 8,
-    paddingRight: 24,
+    paddingRight: 16,
   },
   message: {
     marginTop: 24,
@@ -379,9 +380,15 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   platform: {
     fontSize: 16,
     fontWeight: "800",
+    flexShrink: 1,
   },
   username: {
     fontSize: 13,
@@ -392,20 +399,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
-  breachRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  breachText: {
-    fontSize: 12,
-    fontWeight: "800",
-    flexShrink: 1,
-  },
   fab: {
     position: "absolute",
-    right: 24,
+    right: 16,
     bottom: 24,
   },
   fabInner: {

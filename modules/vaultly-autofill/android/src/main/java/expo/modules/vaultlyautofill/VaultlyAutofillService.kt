@@ -54,6 +54,7 @@ class VaultlyAutofillService : AutofillService() {
       .putExtra(VaultlyAutofillActivity.EXTRA_DOMAIN, parsed.webDomain)
       .putExtra(VaultlyAutofillActivity.EXTRA_USERNAME_ID, parsed.usernameId)
       .putExtra(VaultlyAutofillActivity.EXTRA_PASSWORD_ID, parsed.passwordId)
+      .putExtra(VaultlyAutofillActivity.EXTRA_USERNAME_KIND, parsed.usernameKind)
 
     // Mutable: the system adds its own extras before launching the activity.
     val sender = PendingIntent.getActivity(
@@ -114,6 +115,7 @@ class VaultlyAutofillService : AutofillService() {
       .putExtra(VaultlyAutofillActivity.EXTRA_DOMAIN, parsed.webDomain)
       .putExtra(VaultlyAutofillActivity.EXTRA_SAVE_USERNAME, parsed.usernameText)
       .putExtra(VaultlyAutofillActivity.EXTRA_SAVE_PASSWORD, password)
+      .putExtra(VaultlyAutofillActivity.EXTRA_USERNAME_KIND, parsed.usernameKind)
     val sender = PendingIntent.getActivity(
       this,
       SAVE_REQUEST_CODE,
@@ -136,6 +138,8 @@ private class Parsed {
   var usernameId: AutofillId? = null
   var passwordId: AutofillId? = null
   var usernameText: String? = null
+  /** "phone", "email", "username" or "any" (e.g. "Mobile number or email"). */
+  var usernameKind: String? = null
   var passwordText: String? = null
 }
 
@@ -143,8 +147,10 @@ private class Parsed {
 @RequiresApi(Build.VERSION_CODES.O)
 private class FieldParser {
   private val result = Parsed()
-  private var lastUser: Pair<AutofillId, String?>? = null
-  private var firstUser: Pair<AutofillId, String?>? = null
+  private class Candidate(val id: AutofillId, val text: String?, val kind: String)
+
+  private var lastUser: Candidate? = null
+  private var firstUser: Candidate? = null
 
   fun parse(structure: AssistStructure): Parsed {
     result.packageName = structure.activityComponent?.packageName
@@ -152,10 +158,7 @@ private class FieldParser {
       visit(structure.getWindowNodeAt(i).rootViewNode)
     }
     if (result.usernameId == null) {
-      firstUser?.let {
-        result.usernameId = it.first
-        result.usernameText = it.second
-      }
+      firstUser?.let { useAsUsername(it) }
     }
     return result
   }
@@ -167,19 +170,17 @@ private class FieldParser {
 
     val id = node.autofillId
     if (id != null && node.autofillType == android.view.View.AUTOFILL_TYPE_TEXT) {
-      when (classify(node)) {
+      val kind = classify(node)
+      when (kind.first) {
         Kind.PASSWORD -> if (result.passwordId == null) {
           result.passwordId = id
           result.passwordText = textOf(node)
           if (result.usernameId == null) {
-            lastUser?.let {
-              result.usernameId = it.first
-              result.usernameText = it.second
-            }
+            lastUser?.let { useAsUsername(it) }
           }
         }
         Kind.USERNAME -> {
-          lastUser = id to textOf(node)
+          lastUser = Candidate(id, textOf(node), kind.second ?: "username")
           if (firstUser == null) firstUser = lastUser
         }
         Kind.OTHER -> {}
@@ -189,6 +190,12 @@ private class FieldParser {
     for (i in 0 until node.childCount) visit(node.getChildAt(i))
   }
 
+  private fun useAsUsername(c: Candidate) {
+    result.usernameId = c.id
+    result.usernameText = c.text
+    result.usernameKind = c.kind
+  }
+
   // What the user typed (only present in save requests).
   private fun textOf(node: AssistStructure.ViewNode): String? =
     node.autofillValue?.takeIf { it.isText }?.textValue?.toString()
@@ -196,11 +203,12 @@ private class FieldParser {
 
   private enum class Kind { USERNAME, PASSWORD, OTHER }
 
-  private fun classify(node: AssistStructure.ViewNode): Kind {
+  private fun classify(node: AssistStructure.ViewNode): Pair<Kind, String?> {
     val hints = node.autofillHints?.map { it.lowercase() } ?: emptyList()
     val input = node.inputType
     val variation = input and InputType.TYPE_MASK_VARIATION
-    val isTextClass = (input and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT
+    val inputClass = input and InputType.TYPE_MASK_CLASS
+    val isTextClass = inputClass == InputType.TYPE_CLASS_TEXT
     val html = node.htmlInfo?.attributes?.associate { it.first.lowercase() to it.second.lowercase() }
 
     val isPassword = hints.any { it.contains("password") } ||
@@ -208,19 +216,38 @@ private class FieldParser {
         variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
         variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
       html?.get("type") == "password"
-    if (isPassword) return Kind.PASSWORD
+    if (isPassword) return Kind.PASSWORD to null
 
     val label = listOfNotNull(node.idEntry, node.hint, html?.get("name"), html?.get("autocomplete"))
       .joinToString(" ").lowercase()
-    val isUser = hints.any { it == "username" || it == "emailaddress" || it.contains("email") } ||
+
+    // Strong signals first: autofill hints, input type, HTML type.
+    val phoneSignal = hints.any { it.contains("phone") } ||
+      inputClass == InputType.TYPE_CLASS_PHONE || html?.get("type") == "tel"
+    val emailSignal = hints.any { it.contains("email") } ||
       (isTextClass && (variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
         variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)) ||
-      html?.get("type") == "email" ||
-      USER_WORDS.any { label.contains(it) }
-    return if (isUser) Kind.USERNAME else Kind.OTHER
+      html?.get("type") == "email"
+    // Then the field's label ("Mobile number or email address" accepts both).
+    val labelPhone = PHONE_WORDS.any { label.contains(it) }
+    val labelEmail = label.contains("email")
+
+    val kind = when {
+      phoneSignal && emailSignal -> "any"
+      phoneSignal -> "phone"
+      emailSignal -> "email"
+      hints.any { it == "username" } -> "username"
+      labelPhone && labelEmail -> "any"
+      labelPhone -> "phone"
+      labelEmail -> "email"
+      USER_WORDS.any { label.contains(it) } -> "username"
+      else -> null
+    }
+    return if (kind != null) Kind.USERNAME to kind else Kind.OTHER to null
   }
 
   companion object {
-    private val USER_WORDS = listOf("user", "email", "login", "identifier", "account")
+    private val USER_WORDS = listOf("user", "login", "identifier", "account")
+    private val PHONE_WORDS = listOf("phone", "mobile", "msisdn")
   }
 }

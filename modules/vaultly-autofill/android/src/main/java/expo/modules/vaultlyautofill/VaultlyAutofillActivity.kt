@@ -27,6 +27,9 @@ class VaultlyAutofillActivity : ReactActivity() {
   /** "fill" (default) or "save" (a submitted login to store in the vault). */
   var mode: String = MODE_FILL
     private set
+  /** "phone", "email", "username" or "any": what the login field asks for. */
+  var usernameKind: String? = null
+    private set
   var saveUsername: String? = null
     private set
   var savePassword: String? = null
@@ -43,6 +46,7 @@ class VaultlyAutofillActivity : ReactActivity() {
     targetPackage = intent.getStringExtra(EXTRA_PACKAGE)
     targetDomain = intent.getStringExtra(EXTRA_DOMAIN)
     mode = intent.getStringExtra(EXTRA_MODE) ?: MODE_FILL
+    usernameKind = intent.getStringExtra(EXTRA_USERNAME_KIND)
     saveUsername = intent.getStringExtra(EXTRA_SAVE_USERNAME)
     savePassword = intent.getStringExtra(EXTRA_SAVE_PASSWORD)
     @Suppress("DEPRECATION")
@@ -85,6 +89,7 @@ class VaultlyAutofillActivity : ReactActivity() {
     const val EXTRA_MODE = "vaultly.mode"
     const val EXTRA_SAVE_USERNAME = "vaultly.saveUsername"
     const val EXTRA_SAVE_PASSWORD = "vaultly.savePassword"
+    const val EXTRA_USERNAME_KIND = "vaultly.usernameKind"
     const val EXTRA_PACKAGE = "vaultly.targetPackage"
     const val EXTRA_DOMAIN = "vaultly.targetDomain"
     const val EXTRA_USERNAME_ID = "vaultly.usernameId"

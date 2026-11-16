@@ -113,7 +113,9 @@ export function guessPlatformName(
  * screen say "already saved" or offer to update the password instead of
  * adding a duplicate.
  */
-export function findExistingEntry<T extends Matchable & { username?: string; email?: string }>(
+export function findExistingEntry<
+  T extends Matchable & { username?: string; email?: string; phone?: string },
+>(
   entries: T[],
   target: FillTarget,
   username: string,
@@ -121,9 +123,49 @@ export function findExistingEntry<T extends Matchable & { username?: string; ema
 ): T | undefined {
   const u = username.trim().toLowerCase();
   if (!u) return undefined; // a blank username never "matches" an entry that has none
+  const digits = (v: string) => v.replace(/\D/g, "");
+  const isPhone = classifyIdentifier(u) === "phone";
   return entries.find(
     (e) =>
       matchesTarget(e, target, platformTargets) &&
-      ((e.username ?? "").toLowerCase() === u || (e.email ?? "").toLowerCase() === u),
+      ((e.username ?? "").toLowerCase() === u ||
+        (e.email ?? "").toLowerCase() === u ||
+        (isPhone && !!e.phone && digits(e.phone) === digits(u))),
   );
+}
+
+export type IdentifierKind = "phone" | "email" | "username";
+
+/** What kind of login identifier a typed value is: an email, a phone number, or a username. */
+export function classifyIdentifier(value: string): IdentifierKind {
+  const v = value.trim();
+  if (v.includes("@")) return "email";
+  if (/^\+?[\d\s().-]{6,}$/.test(v) && v.replace(/\D/g, "").length >= 6) return "phone";
+  return "username";
+}
+
+/** What a login form's identifier field asks for ("any" = e.g. "Mobile number or email"). */
+export type FieldKind = IdentifierKind | "any";
+
+/**
+ * The value to put in the identifier field: the entry's phone for a phone
+ * field, its email for an email field, otherwise username, then email, then
+ * phone. Falls back to whatever the entry has so the field is never empty
+ * when something usable is saved.
+ */
+export function pickIdentifier(
+  entry: { username?: string; email?: string; phone?: string },
+  kind: FieldKind | null,
+): string {
+  const order: ("username" | "email" | "phone")[] =
+    kind === "phone"
+      ? ["phone", "username", "email"]
+      : kind === "email"
+        ? ["email", "username", "phone"]
+        : ["username", "email", "phone"];
+  for (const key of order) {
+    const v = entry[key]?.trim();
+    if (v) return v;
+  }
+  return "";
 }
