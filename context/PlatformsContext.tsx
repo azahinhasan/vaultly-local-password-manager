@@ -9,6 +9,7 @@ import {
 import {
   DEFAULT_PLATFORMS,
   MAX_PLATFORM_NAME_LENGTH,
+  OTHER_CATEGORY,
   PlatformEntry,
 } from "../constants/platforms";
 
@@ -22,13 +23,20 @@ interface MutationResult {
 interface PlatformsContextType {
   platforms: PlatformEntry[];
   isLoading: boolean;
-  addPlatform: (name: string, color: string) => Promise<MutationResult>;
+  addPlatform: (
+    name: string,
+    category: string,
+    color?: string,
+  ) => Promise<MutationResult>;
   updatePlatform: (
     originalName: string,
     name: string,
-    color: string,
+    category: string,
+    color?: string,
   ) => Promise<MutationResult>;
   removePlatform: (name: string) => Promise<void>;
+  /** Stamps lastUsedAt, which drives the "Recently used" row. */
+  markPlatformUsed: (name: string) => Promise<void>;
 }
 
 const PlatformsContext = createContext<PlatformsContextType | undefined>(
@@ -58,6 +66,18 @@ function validateName(
   return null;
 }
 
+// Lists saved before categories existed: keep every platform, take the
+// category from the built-in list by name, else "Other".
+function withCategories(stored: Partial<PlatformEntry>[]): PlatformEntry[] {
+  return stored.map((p) => ({
+    ...(p as PlatformEntry),
+    category:
+      p.category ??
+      DEFAULT_PLATFORMS.find((d) => d.name === p.name)?.category ??
+      OTHER_CATEGORY,
+  }));
+}
+
 export function PlatformsProvider({ children }: { children: ReactNode }) {
   const [platforms, setPlatforms] = useState<PlatformEntry[]>(DEFAULT_PLATFORMS);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +86,7 @@ export function PlatformsProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          setPlatforms(JSON.parse(stored));
+          setPlatforms(withCategories(JSON.parse(stored)));
         }
       })
       .finally(() => setIsLoading(false));
@@ -79,7 +99,8 @@ export function PlatformsProvider({ children }: { children: ReactNode }) {
 
   const addPlatform = async (
     name: string,
-    color: string,
+    category: string,
+    color?: string,
   ): Promise<MutationResult> => {
     const trimmed = name.trim();
     const error = validateName(trimmed, platforms);
@@ -87,14 +108,15 @@ export function PlatformsProvider({ children }: { children: ReactNode }) {
       return { success: false, error };
     }
 
-    await persist([...platforms, { name: trimmed, color }]);
+    await persist([...platforms, { name: trimmed, category, color }]);
     return { success: true };
   };
 
   const updatePlatform = async (
     originalName: string,
     name: string,
-    color: string,
+    category: string,
+    color?: string,
   ): Promise<MutationResult> => {
     const trimmed = name.trim();
     const error = validateName(trimmed, platforms, originalName);
@@ -104,7 +126,7 @@ export function PlatformsProvider({ children }: { children: ReactNode }) {
 
     await persist(
       platforms.map((p) =>
-        p.name === originalName ? { name: trimmed, color } : p,
+        p.name === originalName ? { ...p, name: trimmed, category, color } : p,
       ),
     );
     return { success: true };
@@ -114,9 +136,25 @@ export function PlatformsProvider({ children }: { children: ReactNode }) {
     await persist(platforms.filter((p) => p.name !== name));
   };
 
+  const markPlatformUsed = async (name: string): Promise<void> => {
+    if (!platforms.some((p) => p.name === name)) {
+      return;
+    }
+    await persist(
+      platforms.map((p) => (p.name === name ? { ...p, lastUsedAt: Date.now() } : p)),
+    );
+  };
+
   return (
     <PlatformsContext.Provider
-      value={{ platforms, isLoading, addPlatform, updatePlatform, removePlatform }}
+      value={{
+        platforms,
+        isLoading,
+        addPlatform,
+        updatePlatform,
+        removePlatform,
+        markPlatformUsed,
+      }}
     >
       {children}
     </PlatformsContext.Provider>

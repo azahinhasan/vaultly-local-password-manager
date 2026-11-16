@@ -9,6 +9,13 @@ interface NeoBrutalCardProps {
   backgroundColor?: string;
   onPress?: () => void;
   onLongPress?: () => void;
+  radius?: number;
+  /** Hard-shadow offset; also the distance the card sinks when pressed. */
+  offset?: number;
+  borderColor?: string;
+  accessibilityLabel?: string;
+  hitSlop?: number;
+  disabled?: boolean;
 }
 
 export function NeoBrutalCard({
@@ -17,6 +24,12 @@ export function NeoBrutalCard({
   backgroundColor,
   onPress,
   onLongPress,
+  radius = RADIUS,
+  offset = SHADOW_OFFSET,
+  borderColor,
+  accessibilityLabel,
+  hitSlop,
+  disabled,
 }: NeoBrutalCardProps) {
   const colors = useThemeColors();
   const isPressable = !!onPress || !!onLongPress;
@@ -25,28 +38,38 @@ export function NeoBrutalCard({
     styles.surface,
     {
       backgroundColor: backgroundColor ?? colors.surface,
-      borderColor: colors.border,
-      borderRadius: RADIUS,
+      borderColor: borderColor ?? colors.border,
+      borderRadius: radius,
       transform: pressed
-        ? [{ translateX: SHADOW_OFFSET }, { translateY: SHADOW_OFFSET }]
+        ? [{ translateX: offset }, { translateY: offset }]
         : [{ translateX: 0 }, { translateY: 0 }],
     },
     style,
   ];
 
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={{ position: "relative", marginRight: offset, marginBottom: offset }}
+    >
       <View
         style={[
           styles.shadow,
-          { backgroundColor: colors.shadow, borderRadius: RADIUS },
+          {
+            backgroundColor: colors.shadow,
+            borderRadius: radius,
+            transform: [{ translateX: offset }, { translateY: offset }],
+          },
         ]}
       />
       {isPressable ? (
         <Pressable
           onPress={onPress}
           onLongPress={onLongPress}
-          style={({ pressed }) => surfaceStyle(pressed)}
+          disabled={disabled}
+          hitSlop={hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          style={({ pressed }) => surfaceStyle(pressed && !disabled)}
         >
           {children}
         </Pressable>
@@ -58,18 +81,12 @@ export function NeoBrutalCard({
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: "relative",
-    marginRight: SHADOW_OFFSET,
-    marginBottom: SHADOW_OFFSET,
-  },
   shadow: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    transform: [{ translateX: SHADOW_OFFSET }, { translateY: SHADOW_OFFSET }],
   },
   surface: {
     borderWidth: BORDER_WIDTH,

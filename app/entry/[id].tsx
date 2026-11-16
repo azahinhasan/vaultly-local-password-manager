@@ -1,11 +1,21 @@
 import { AppDialog, AppDialogOption } from "@/components/AppDialog";
-import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
+import {
+  BrutalIconButton,
+  BrutalTextField,
+  Monogram,
+  useSnackbar,
+} from "@/components/Brutal";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
-import { PlatformSelect } from "@/components/PlatformSelect";
+import { PlatformSheet } from "@/components/PlatformSheet";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import {
+  generatePassword,
+  passwordStrength,
+  STRENGTH_LABELS,
+} from "@/utils/password";
 import {
   loadEncryptedVault,
   saveEncryptedVault,
@@ -14,55 +24,42 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const AMBER = "#F29A1F";
+const YELLOW = "#C8B400";
+
 export default function EntryFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { vaultKey } = useAuth();
-  const { platforms } = usePlatforms();
+  const { platforms, markPlatformUsed } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
+  const [snackbar, showSnackbar] = useSnackbar();
 
   const isNew = id === "new";
-  const platformNames = useMemo(
-    () => platforms.map((p) => p.name),
-    [platforms],
-  );
-  const scrollViewRef = useRef<ScrollView>(null);
-  const passwordInputRef = useRef<TextInput>(null);
-  const notesInputRef = useRef<TextInput>(null);
-  const scrollOffset = useRef(0);
-  const contentHeight = useRef(0);
-  const viewportHeight = useRef(0);
-  const scrollAnim = useRef(new Animated.Value(0)).current;
 
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [platform, setPlatform] = useState("");
-  const [isCustomPlatform, setIsCustomPlatform] = useState(false);
-  const [color, setColor] = useState<string | undefined>(undefined);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<
-    "password" | "notes" | null
-  >(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showInvalid, setShowInvalid] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -72,52 +69,6 @@ export default function EntryFormScreen() {
     options: AppDialogOption[];
   } | null>(null);
   const closeDialog = () => setDialog(null);
-
-  useEffect(() => {
-    // scrollTo/scrollToEnd don't expose a duration — driving the offset
-    // through an Animated.Value ourselves is the only way to get a
-    // deliberately smooth (not instant-feeling) scroll.
-    const id = scrollAnim.addListener(({ value }) => {
-      scrollViewRef.current?.scrollTo({ y: value, animated: false });
-    });
-    return () => scrollAnim.removeListener(id);
-  }, [scrollAnim]);
-
-  const focusLowerField = (field: "password" | "notes") => {
-    setFocusedField(field);
-    // Wait a tick so the extra bottom padding (which only applies once
-    // focusedField is set) has actually taken effect — otherwise there's
-    // not yet enough scrollable content to smooth-scroll into.
-    setTimeout(() => {
-      const target = Math.max(
-        0,
-        contentHeight.current - viewportHeight.current,
-      );
-      scrollAnim.setValue(scrollOffset.current);
-      Animated.timing(scrollAnim, {
-        toValue: target,
-        duration: 350,
-        useNativeDriver: false,
-      }).start();
-    }, 50);
-  };
-
-  useEffect(() => {
-    // Android can hide the keyboard (back button, the keyboard's own
-    // dismiss chevron, swipe-down) without actually blurring the native
-    // TextInput underneath — the field stays natively "focused" even
-    // though the keyboard is gone. If we only reset our own JS state here,
-    // tapping that same field again isn't a real focus transition (it
-    // never blurred), so onFocus never fires a second time. Explicitly
-    // blurring both refs keeps native focus state in sync with what the
-    // user actually sees, so the next tap always fires onFocus again.
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      setFocusedField(null);
-      passwordInputRef.current?.blur();
-      notesInputRef.current?.blur();
-    });
-    return () => hideSub.remove();
-  }, []);
 
   useEffect(() => {
     if (!vaultKey) {
@@ -131,8 +82,6 @@ export default function EntryFormScreen() {
           const existing = vault.find((entry) => entry.id === id);
           if (existing) {
             setPlatform(existing.platform);
-            setIsCustomPlatform(!platformNames.includes(existing.platform));
-            setColor(existing.color);
             setUsername(existing.username ?? "");
             setEmail(existing.email ?? "");
             setPassword(existing.password);
@@ -143,37 +92,41 @@ export default function EntryFormScreen() {
         }
       })
       .catch(() => setError("Failed to load vault."));
-    // Only re-run when the id being edited changes, not every time the
-    // managed platforms list changes (that would clobber in-progress edits).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultKey, id, isNew]);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
   }
 
-  const handleSave = async () => {
-    setFocusedField(null);
+  const strength = passwordStrength(password);
+  const strengthColor = [
+    colors.border,
+    colors.error,
+    AMBER,
+    YELLOW,
+    colors.success,
+  ][strength];
 
+  const finish = (message: string) => {
+    showSnackbar(message);
+    setTimeout(() => router.back(), 700);
+  };
+
+  const handleSave = async () => {
+    setError("");
     if (!entries) {
+      return;
+    }
+
+    if (!platform || !password) {
+      setShowInvalid(true);
+      showSnackbar("Choose a platform and enter a password");
       return;
     }
 
     const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
-
-    if (!platform || !password || (!trimmedUsername && !trimmedEmail)) {
-      setError(
-        "Platform, password, and at least a username or email are required.",
-      );
-      return;
-    }
-
-    setError("");
-    setIsSaving(true);
-
     const trimmedNotes = notes.trim();
-    const entryColor = isCustomPlatform ? color : undefined;
     const updated: VaultEntry[] = isNew
       ? [
           ...entries,
@@ -184,7 +137,6 @@ export default function EntryFormScreen() {
             ...(trimmedEmail ? { email: trimmedEmail } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
-            ...(entryColor ? { color: entryColor } : {}),
           },
         ]
       : entries.map((entry) =>
@@ -196,14 +148,15 @@ export default function EntryFormScreen() {
                 email: trimmedEmail || undefined,
                 password,
                 notes: trimmedNotes || undefined,
-                color: entryColor,
               }
             : entry,
         );
 
+    setIsSaving(true);
     try {
       await saveEncryptedVault(updated, vaultKey);
-      router.back();
+      await markPlatformUsed(platform);
+      finish(isNew ? "Saved to your vault" : "Changes saved");
     } catch {
       setError("Failed to save entry.");
       setIsSaving(false);
@@ -216,11 +169,12 @@ export default function EntryFormScreen() {
     }
 
     setIsDeleting(true);
-    const updated = entries.filter((entry) => entry.id !== id);
-
     try {
-      await saveEncryptedVault(updated, vaultKey);
-      router.back();
+      await saveEncryptedVault(
+        entries.filter((entry) => entry.id !== id),
+        vaultKey,
+      );
+      finish("Entry deleted");
     } catch {
       setError("Failed to delete entry.");
       setIsDeleting(false);
@@ -230,12 +184,12 @@ export default function EntryFormScreen() {
   const confirmDelete = () => {
     setDialog({
       title: "Delete entry?",
-      message: `This will permanently delete the entry.`,
+      message: "This will permanently delete the entry.",
       options: [{ label: "Delete", destructive: true, onPress: handleDelete }],
     });
   };
 
-  if (notFound) {
+  if (notFound || entries === null) {
     return (
       <SafeAreaView
         style={[
@@ -244,31 +198,28 @@ export default function EntryFormScreen() {
           { backgroundColor: colors.background },
         ]}
       >
-        <Text style={[styles.title, { color: colors.text }]}>
-          Entry not found
-        </Text>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.cancelText, { color: colors.accent }]}>
-            Go back
-          </Text>
-        </Pressable>
+        {notFound ? (
+          <>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Entry not found
+            </Text>
+            <NeoBrutalButton label="Back" onPress={() => router.back()} />
+          </>
+        ) : (
+          <ActivityIndicator color={colors.accent} />
+        )}
       </SafeAreaView>
     );
   }
 
-  if (entries === null) {
-    return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          styles.centered,
-          { backgroundColor: colors.background },
-        ]}
-      >
-        <ActivityIndicator color={colors.accent} />
-      </SafeAreaView>
-    );
-  }
+  const busy = isSaving || isDeleting;
+
+  const labelRow = (label: string, hint: string) => (
+    <View style={styles.labelRow}>
+      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <Text style={[styles.hint, { color: colors.subtext }]}>{hint}</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView
@@ -278,221 +229,192 @@ export default function EntryFormScreen() {
         style={styles.inner}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable onPress={() => router.back()} style={styles.cancelButton}>
-          <Text style={[styles.cancelText, { color: colors.accent }]}>
-            Cancel
+        <View style={styles.header}>
+          <BrutalIconButton
+            icon="chevron-back"
+            label="Back"
+            onPress={() => router.back()}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            {isNew ? "Add entry" : "Edit entry"}
           </Text>
-        </Pressable>
-
-        <Text style={[styles.title, { color: colors.text }]}>
-          {isNew ? "Add Entry" : "Edit Entry"}
-        </Text>
+        </View>
 
         <ScrollView
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.form,
-            focusedField && styles.formWithKeyboardSpace,
-          ]}
+          style={styles.scroll}
+          contentContainerStyle={styles.form}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => {
-            scrollOffset.current = e.nativeEvent.contentOffset.y;
-          }}
-          scrollEventThrottle={16}
-          onContentSizeChange={(_width, height) => {
-            contentHeight.current = height;
-          }}
-          onLayout={(e) => {
-            viewportHeight.current = e.nativeEvent.layout.height;
-          }}
         >
           <View>
-            <View style={styles.platformHeader}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Platform
-              </Text>
-              <Pressable
-                onPress={() => {
-                  setIsCustomPlatform((v) => !v);
-                  setPlatform("");
-                  setColor(undefined);
-                }}
+            {labelRow("Platform", `${platforms.length} available`)}
+            <Pressable
+              onPress={() => setSheetOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Platform: ${platform || "none selected"}`}
+              style={[
+                styles.select,
+                {
+                  borderColor:
+                    showInvalid && !platform ? colors.error : colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+            >
+              {!!platform && <Monogram name={platform} size={28} />}
+              <Text
+                style={[
+                  styles.selectText,
+                  { color: platform ? colors.text : colors.subtext },
+                ]}
+                numberOfLines={1}
               >
-                <Text style={[styles.link, { color: colors.accent }]}>
-                  {isCustomPlatform ? "Choose from list" : "Enter manually"}
-                </Text>
-              </Pressable>
-            </View>
-            {isCustomPlatform ? (
-              <>
-                <TextInput
+                {platform || "Select a platform"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <View>
+            {labelRow("Username", "Optional")}
+            <BrutalTextField
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Username"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View>
+            {labelRow("Email", "Optional")}
+            <BrutalTextField
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email address"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View>
+            {labelRow("Password", "")}
+            <BrutalTextField
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              invalid={showInvalid && !password}
+              right={
+                <View style={styles.passwordActions}>
+                  <Pressable
+                    onPress={() => {
+                      setPassword(generatePassword(Crypto.getRandomBytes));
+                      setShowPassword(true);
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Generate password"
+                  >
+                    <Text style={[styles.generate, { color: colors.accent }]}>
+                      Generate
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setShowPassword((v) => !v)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={22}
+                      color={colors.text}
+                    />
+                  </Pressable>
+                </View>
+              }
+            />
+            <View style={styles.meter}>
+              {[1, 2, 3, 4].map((segment) => (
+                <View
+                  key={segment}
                   style={[
-                    styles.input,
+                    styles.segment,
                     {
-                      color: colors.text,
-                      borderColor: colors.border,
-                      backgroundColor: colors.surface,
+                      backgroundColor:
+                        segment <= strength ? strengthColor : colors.subtext,
+                      opacity: segment <= strength ? 1 : 0.3,
                     },
                   ]}
-                  value={platform}
-                  onChangeText={setPlatform}
-                  placeholder="e.g. Steam"
-                  placeholderTextColor={colors.subtext}
-                  autoCapitalize="words"
                 />
-                <Text
-                  style={[
-                    styles.label,
-                    styles.colorLabel,
-                    { color: colors.text },
-                  ]}
-                >
-                  Color (optional)
-                </Text>
-                <ColorSwatchPicker value={color} onChange={setColor} />
-              </>
-            ) : (
-              <PlatformSelect
-                value={platform}
-                onChange={setPlatform}
-                options={platformNames}
-              />
+              ))}
+            </View>
+            {strength > 0 && (
+              <Text style={[styles.strengthLabel, { color: colors.subtext }]}>
+                {STRENGTH_LABELS[strength]}
+              </Text>
             )}
           </View>
 
           <View>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Username (optional)
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              value={username}
-              onChangeText={setUsername}
-              placeholder="Username"
-              placeholderTextColor={colors.subtext}
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Email (optional)
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Email address"
-              placeholderTextColor={colors.subtext}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-
-          <View>
-            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                ref={passwordInputRef}
-                style={[
-                  styles.input,
-                  styles.passwordInput,
-                  {
-                    color: colors.text,
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                placeholderTextColor={colors.subtext}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                returnKeyType="done"
-                onFocus={() => focusLowerField("password")}
-                onBlur={() => setFocusedField(null)}
-                onSubmitEditing={() => setFocusedField(null)}
-              />
-              <Pressable
-                onPress={() => setShowPassword((v) => !v)}
-                style={styles.eyeButton}
-                hitSlop={12}
-              >
-                <Ionicons
-                  name={showPassword ? "eye-off" : "eye"}
-                  size={20}
-                  color={colors.text}
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          <View>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Notes (optional)
-            </Text>
-            <TextInput
-              ref={notesInputRef}
-              style={[
-                styles.input,
-                styles.notesInput,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
+            {labelRow("Notes", "Optional")}
+            <BrutalTextField
               value={notes}
               onChangeText={setNotes}
-              placeholder="Add any extra details"
-              placeholderTextColor={colors.subtext}
+              placeholder="Anything else worth remembering"
               multiline
+              numberOfLines={2}
               textAlignVertical="top"
-              onFocus={() => focusLowerField("notes")}
-              onBlur={() => setFocusedField(null)}
+              style={styles.notes}
             />
           </View>
 
           {!!error && (
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )}
-
-          <NeoBrutalButton
-            label={isSaving ? "Saving..." : "Save"}
-            onPress={handleSave}
-            disabled={isSaving || isDeleting}
-            color="#2847b8"
-            textColor="#FFFFFF"
-            style={styles.saveButton}
-          />
-
-          {!isNew && (
-            <NeoBrutalButton
-              label={isDeleting ? "Deleting..." : "Delete"}
-              onPress={confirmDelete}
-              disabled={isSaving || isDeleting}
-              variant="error"
-            />
-          )}
         </ScrollView>
+
+        <View style={styles.actions}>
+          <NeoBrutalButton
+            label={
+              isSaving ? "Saving..." : isNew ? "Save entry" : "Save changes"
+            }
+            onPress={handleSave}
+            disabled={busy}
+          />
+          {!isNew && (
+            <Pressable
+              onPress={confirmDelete}
+              disabled={busy}
+              accessibilityRole="button"
+              style={[
+                styles.deleteButton,
+                { borderColor: colors.error, opacity: busy ? 0.5 : 1 },
+              ]}
+            >
+              <Text style={[styles.deleteText, { color: colors.error }]}>
+                {isDeleting ? "Deleting..." : "Delete entry"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </KeyboardAvoidingView>
+
+      <PlatformSheet
+        visible={sheetOpen}
+        selected={platform}
+        onClose={() => setSheetOpen(false)}
+        onSelect={(name) => {
+          setPlatform(name);
+          setSheetOpen(false);
+        }}
+      />
 
       <AppDialog
         visible={dialog !== null}
@@ -501,6 +423,8 @@ export default function EntryFormScreen() {
         options={dialog?.options ?? []}
         onDismiss={closeDialog}
       />
+
+      {snackbar}
     </SafeAreaView>
   );
 }
@@ -511,83 +435,103 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    padding: 24,
-    gap: 8,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 12,
   },
   centered: {
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
   },
-  cancelButton: {
-    alignSelf: "flex-start",
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: "800",
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   title: {
     fontSize: 26,
     fontWeight: "900",
-    marginBottom: 12,
   },
-  scrollView: {
+  scroll: {
     flex: 1,
   },
   form: {
-    gap: 18,
-    paddingBottom: 24,
+    gap: 14,
+    paddingBottom: 16,
   },
-  // Extra scroll room reserved only while the Password or Notes field is
-  // focused — those sit closest to the keyboard, and without this there's
-  // not enough content below them for the ScrollView to scroll into.
-  formWithKeyboardSpace: {
-    paddingBottom: Platform.OS === "android" ? 260 : 200,
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
   },
   label: {
     fontSize: 14,
     fontWeight: "800",
-    marginBottom: 8,
   },
-  colorLabel: {
-    marginTop: 14,
+  hint: {
+    fontSize: 13,
+    fontWeight: "600",
   },
-  platformHeader: {
+  select: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  link: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  input: {
+    gap: 10,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontWeight: "600",
+    minHeight: 50,
   },
-  passwordRow: {
-    position: "relative",
-    justifyContent: "center",
+  selectText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
   },
-  passwordInput: {
-    paddingRight: 44,
+  passwordActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
-  eyeButton: {
-    position: "absolute",
-    right: 14,
+  generate: {
+    fontSize: 13,
+    fontWeight: "800",
   },
-  notesInput: {
-    minHeight: 80,
+  meter: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 10,
+  },
+  segment: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+  },
+  strengthLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  notes: {
+    minHeight: 64,
   },
   error: {
     fontSize: 13,
     fontWeight: "700",
   },
-  saveButton: {
-    marginTop: 8,
+  actions: {
+    gap: 10,
+    paddingBottom: 8,
+  },
+  deleteButton: {
+    borderWidth: BORDER_WIDTH,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginRight: 3,
+  },
+  deleteText: {
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

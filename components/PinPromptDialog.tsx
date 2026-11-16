@@ -75,7 +75,7 @@ export function PinPromptDialog({
     >
       <Pressable style={styles.backdrop} onPress={onCancel}>
         <NeoBrutalCard>
-          <View style={styles.content}>
+          <View style={styles.content} onStartShouldSetResponder={() => true}>
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             {!!message && (
               <Text style={[styles.message, { color: colors.subtext }]}>

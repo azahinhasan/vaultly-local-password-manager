@@ -45,7 +45,7 @@ export function NeoBrutalButton({
       <View
         style={[
           styles.shadow,
-          { backgroundColor: colors.shadow, borderRadius: RADIUS },
+          { backgroundColor: colors.shadow, borderRadius: 16 },
         ]}
       />
       <Pressable
@@ -56,7 +56,7 @@ export function NeoBrutalButton({
           {
             backgroundColor: fill,
             borderColor: colors.border,
-            borderRadius: RADIUS,
+            borderRadius: 16,
             opacity: disabled ? 0.5 : 1,
             transform:
               pressed && !disabled

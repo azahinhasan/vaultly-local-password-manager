@@ -1,7 +1,13 @@
 import { AppDialog, AppDialogOption } from "@/components/AppDialog";
+import {
+  BrutalIconButton,
+  SectionLabel,
+  ToggleSwitch,
+} from "@/components/Brutal";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PinPromptDialog } from "@/components/PinPromptDialog";
 import { BORDER_WIDTH, THEME_OPTIONS } from "@/constants/theme";
+import { AUTO_LOCK_OPTIONS, useSecurity } from "@/context/SecurityContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
@@ -26,6 +32,7 @@ import {
 } from "@/utils/biometric";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
+import * as LocalAuthentication from "expo-local-authentication";
 import * as Updates from "expo-updates";
 import { useEffect, useState } from "react";
 import {
@@ -39,7 +46,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SettingsScreen() {
-  const { vaultKey } = useAuth();
+  const { vaultKey, verifyCurrentPin } = useAuth();
+  const { autoLock, setAutoLock, hideInSwitcher, setHideInSwitcher } =
+    useSecurity();
   const { mode, setMode } = useTheme();
   const router = useRouter();
   const colors = useThemeColors();
@@ -56,6 +65,8 @@ export default function SettingsScreen() {
     string | null
   >(null);
   const [importPinError, setImportPinError] = useState("");
+  const [erasePinOpen, setErasePinOpen] = useState(false);
+  const [erasePinError, setErasePinError] = useState("");
 
   const [biometricOn, setBiometricOn] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -66,11 +77,24 @@ export default function SettingsScreen() {
 
   const toggleBiometric = async () => {
     if (!vaultKey) return;
+    if (!biometricOn && !biometricAvailable) {
+      setDialog({
+        title: "Biometric unlock",
+        message:
+          "Set up a fingerprint or face unlock in your phone's settings first.",
+        options: [{ label: "OK" }],
+      });
+      return;
+    }
     try {
       if (biometricOn) {
         await disableBiometric();
         setBiometricOn(false);
       } else {
+        const auth = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Confirm to enable biometric unlock",
+        });
+        if (!auth.success) return;
         await enableBiometric(vaultKey);
         setBiometricOn(true);
       }
@@ -234,13 +258,27 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleErasePin = async (pin: string) => {
+    if (await verifyCurrentPin(pin)) {
+      setErasePinOpen(false);
+      setErasePinError("");
+      await deleteAllData();
+    } else {
+      setErasePinError("Incorrect PIN.");
+    }
+  };
+
   const handleDeleteAllData = () => {
     setDialog({
-      title: "Delete all data?",
+      title: "Erase vault?",
       message:
-        "This permanently deletes every entry in your vault — every saved platform, username, and password. This cannot be undone.",
+        "This permanently deletes every entry in your vault — every saved platform, username, and password. This cannot be undone. You will be asked for your PIN next.",
       options: [
-        { label: "Delete Everything", destructive: true, onPress: deleteAllData },
+        {
+          label: "Erase vault",
+          destructive: true,
+          onPress: () => setErasePinOpen(true),
+        },
       ],
     });
   };
@@ -302,182 +340,180 @@ export default function SettingsScreen() {
     }
   };
 
+  const autoLockLabel = AUTO_LOCK_OPTIONS.find((o) => o.value === autoLock)!
+    .label;
+
+  const chooseAutoLock = () =>
+    setDialog({
+      title: "Auto-lock",
+      message: "Require the PIN again after the app has been in the background for:",
+      options: AUTO_LOCK_OPTIONS.map((o) => ({
+        label: o.label + (o.value === autoLock ? "  ✓" : ""),
+        onPress: () => setAutoLock(o.value),
+      })),
+    });
+
+  const row = (
+    icon: React.ComponentProps<typeof Ionicons>["name"],
+    label: string,
+    onPress: (() => void) | undefined,
+    right?: React.ReactNode,
+    sub?: string,
+  ) => (
+    <NeoBrutalCard onPress={onPress}>
+      <View style={styles.actionRow}>
+        <Ionicons name={icon} size={20} color={colors.text} />
+        <View style={styles.rowText}>
+          <Text style={[styles.actionLabel, { color: colors.text }]}>
+            {label}
+          </Text>
+          {!!sub && (
+            <Text style={[styles.rowSub, { color: colors.subtext }]}>{sub}</Text>
+          )}
+        </View>
+        {right}
+      </View>
+    </NeoBrutalCard>
+  );
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
-        </Pressable>
+        <BrutalIconButton
+          icon="chevron-back"
+          label="Back"
+          onPress={() => router.back()}
+        />
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Appearance
-        </Text>
-        <View style={styles.themeList}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <SectionLabel>Appearance</SectionLabel>
+        <View style={styles.themeGrid}>
           {THEME_OPTIONS.map((option) => {
             const isActive = mode === option.mode;
             return (
-              <NeoBrutalCard
-                key={option.mode}
-                onPress={() => setMode(option.mode)}
-                backgroundColor={isActive ? colors.highlight : colors.surface}
-              >
-                <View style={styles.themeRow}>
-                  <View style={styles.previewSwatches}>
+              <View key={option.mode} style={styles.themeCell}>
+                <NeoBrutalCard
+                  onPress={() => setMode(option.mode)}
+                  backgroundColor={isActive ? colors.highlight : colors.surface}
+                  accessibilityLabel={option.label}
+                >
+                  <View style={styles.themeTile}>
                     <View
-                      style={[
-                        styles.previewSwatch,
-                        {
-                          backgroundColor: option.preview.background,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.previewSwatch,
-                        styles.previewSwatchOverlap,
-                        {
-                          backgroundColor: option.preview.accent,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <View style={styles.themeTextGroup}>
+                      style={[styles.swatch, { borderColor: colors.border }]}
+                    >
+                      <View
+                        style={[
+                          styles.swatchHalf,
+                          { backgroundColor: option.preview[0] },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.swatchHalf,
+                          { backgroundColor: option.preview[1] },
+                        ]}
+                      />
+                    </View>
                     <Text
                       style={[
                         styles.themeLabel,
-                        {
-                          color: isActive ? colors.highlightText : colors.text,
-                        },
+                        { color: isActive ? colors.highlightText : colors.text },
                       ]}
                     >
                       {option.label}
                     </Text>
-                    <Text
-                      style={[
-                        styles.themeDescription,
-                        {
-                          color: isActive
-                            ? colors.highlightText
-                            : colors.subtext,
-                        },
-                      ]}
-                    >
-                      {option.description}
-                    </Text>
                   </View>
                   {isActive && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={26}
-                      color={colors.highlightText}
-                    />
+                    <View
+                      style={[
+                        styles.check,
+                        { backgroundColor: colors.text, borderColor: colors.border },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={12} color={colors.background} />
+                    </View>
                   )}
-                </View>
-              </NeoBrutalCard>
+                </NeoBrutalCard>
+              </View>
             );
           })}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Vault
-        </Text>
+        <SectionLabel>Security</SectionLabel>
         <View style={styles.actionList}>
-          <NeoBrutalCard onPress={() => router.push("/change-pin")}>
-            <View style={styles.actionRow}>
-              <Ionicons name="key" size={20} color={colors.text} />
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                Change PIN
-              </Text>
-            </View>
-          </NeoBrutalCard>
-          <NeoBrutalCard
-            onPress={
-              biometricAvailable
-                ? toggleBiometric
-                : () =>
-                    setDialog({
-                      title: "Biometric lock",
-                      message:
-                        "Set up a fingerprint or face unlock in your phone's settings first.",
-                      options: [{ label: "OK", onPress: closeDialog }],
-                    })
-            }
-          >
-            <View style={styles.actionRow}>
-              <Ionicons name="finger-print" size={20} color={colors.text} />
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                Biometric Lock: {biometricOn ? "On" : "Off"}
-              </Text>
-            </View>
-          </NeoBrutalCard>
-          <NeoBrutalCard onPress={() => router.push("/manage-platforms")}>
-            <View style={styles.actionRow}>
-              <Ionicons name="albums" size={20} color={colors.text} />
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                Manage Platforms
-              </Text>
-            </View>
-          </NeoBrutalCard>
-          <NeoBrutalCard onPress={handleImport}>
-            <View style={styles.actionRow}>
-              <Ionicons name="download" size={20} color={colors.text} />
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                Import Vault
-              </Text>
-            </View>
-          </NeoBrutalCard>
-          <NeoBrutalCard onPress={handleExport}>
-            <View style={styles.actionRow}>
-              <Ionicons name="share" size={20} color={colors.text} />
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                Export Vault
-              </Text>
-            </View>
-          </NeoBrutalCard>
+          {row("key-outline", "Change PIN", () => router.push("/change-pin"))}
+          {row(
+            "finger-print",
+            "Biometric unlock",
+            toggleBiometric,
+            <ToggleSwitch
+              value={biometricOn}
+              onValueChange={toggleBiometric}
+              label="Biometric unlock"
+            />,
+          )}
+          {row(
+            "time-outline",
+            "Auto-lock",
+            chooseAutoLock,
+            <Text style={[styles.value, { color: colors.subtext }]}>
+              {autoLockLabel}
+            </Text>,
+            "Lock after leaving the app",
+          )}
+          {row(
+            "shield-outline",
+            "Hide in app switcher",
+            () => setHideInSwitcher(!hideInSwitcher),
+            <ToggleSwitch
+              value={hideInSwitcher}
+              onValueChange={setHideInSwitcher}
+              label="Hide in app switcher"
+            />,
+          )}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>App</Text>
+        <SectionLabel>Data</SectionLabel>
         <View style={styles.actionList}>
-          <NeoBrutalCard
-            onPress={isCheckingUpdate ? undefined : handleCheckForUpdates}
-          >
-            <View style={styles.actionRow}>
-              {isCheckingUpdate ? (
-                <ActivityIndicator size="small" color={colors.text} />
-              ) : (
-                <Ionicons name="refresh" size={24} color={colors.text} />
-              )}
-              <Text style={[styles.actionLabel, { color: colors.text }]}>
-                {isCheckingUpdate ? "Checking..." : "Check for Updates"}
-              </Text>
-            </View>
-          </NeoBrutalCard>
+          {row("list-outline", "Manage platforms", () =>
+            router.push("/manage-platforms"),
+          )}
+          {row("download-outline", "Import vault", handleImport)}
+          {row("share-outline", "Export vault", handleExport)}
+          {row(
+            "refresh",
+            isCheckingUpdate ? "Checking..." : "Check for updates",
+            isCheckingUpdate ? undefined : handleCheckForUpdates,
+            isCheckingUpdate ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : undefined,
+          )}
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.error }]}>
-          Danger Zone
-        </Text>
-        <View style={styles.actionList}>
+        <View style={styles.erase}>
           <NeoBrutalCard
             onPress={handleDeleteAllData}
-            backgroundColor={colors.error}
+            borderColor={colors.error}
           >
             <View style={styles.actionRow}>
-              <Ionicons name="trash" size={20} color={colors.errorText} />
-              <Text style={[styles.actionLabel, { color: colors.errorText }]}>
-                Delete All Data
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <Text style={[styles.actionLabel, { color: colors.error }]}>
+                Erase vault
               </Text>
             </View>
           </NeoBrutalCard>
         </View>
+
+        <Text style={[styles.footer, { color: colors.subtext }]}>
+          Everything stays on this device
+        </Text>
       </ScrollView>
 
       <AppDialog
@@ -497,6 +533,18 @@ export default function SettingsScreen() {
         onSubmit={handleImportPinSubmit}
         onCancel={cancelImportPin}
       />
+
+      <PinPromptDialog
+        visible={erasePinOpen}
+        title="Enter your PIN"
+        message="Confirm your PIN to erase the vault."
+        error={erasePinError}
+        onSubmit={handleErasePin}
+        onCancel={() => {
+          setErasePinOpen(false);
+          setErasePinError("");
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -508,75 +556,90 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 14,
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 8,
   },
-  headerSpacer: {
-    width: 26,
-  },
   title: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "900",
   },
   content: {
     padding: 24,
-    gap: 12,
+    gap: 10,
   },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 8,
-  },
-  themeList: {
-    gap: 14,
-  },
-  themeRow: {
+  themeGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 16,
+    flexWrap: "wrap",
+    gap: 10,
   },
-  previewSwatches: {
+  themeCell: {
+    width: "48%",
+    flexGrow: 1,
+  },
+  themeTile: {
+    padding: 12,
+    gap: 10,
+  },
+  swatch: {
     flexDirection: "row",
-    width: 44,
-  },
-  previewSwatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    height: 26,
     borderWidth: BORDER_WIDTH,
+    borderRadius: 8,
+    overflow: "hidden",
   },
-  previewSwatchOverlap: {
-    marginLeft: -12,
-  },
-  themeTextGroup: {
+  swatchHalf: {
     flex: 1,
-    gap: 2,
   },
   themeLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
   },
-  themeDescription: {
-    fontSize: 12,
-    fontWeight: "600",
+  check: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: BORDER_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionList: {
-    gap: 14,
-    marginTop: 4,
+    gap: 10,
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+  },
+  rowText: {
+    flex: 1,
   },
   actionLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
+  },
+  rowSub: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  value: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  erase: {
+    marginTop: 18,
+  },
+  footer: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 16,
   },
 });

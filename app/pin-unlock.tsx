@@ -1,17 +1,19 @@
+import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PinBoxInput } from "@/components/PinBoxInput";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
-import { isBiometricEnabled } from "@/utils/biometric";
+import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -33,6 +35,8 @@ export default function PinUnlockScreen() {
     contextLockedUntil,
   );
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [hasBiometric, setHasBiometric] = useState(false);
+  const [shakeSignal, setShakeSignal] = useState(0);
 
   useEffect(() => {
     if (!lockedUntil) {
@@ -55,8 +59,6 @@ export default function PinUnlockScreen() {
     return () => clearInterval(interval);
   }, [lockedUntil]);
 
-  const [hasBiometric, setHasBiometric] = useState(false);
-
   const tryBiometric = async () => {
     if (await unlockWithBiometric()) {
       router.replace("/vault");
@@ -64,10 +66,12 @@ export default function PinUnlockScreen() {
   };
 
   useEffect(() => {
-    isBiometricEnabled().then((enabled) => {
+    (async () => {
+      const enabled =
+        (await isBiometricEnabled()) && (await isBiometricAvailable());
       setHasBiometric(enabled);
       if (enabled) tryBiometric();
-    });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -83,6 +87,8 @@ export default function PinUnlockScreen() {
     }
 
     setPin("");
+    setShakeSignal((n) => n + 1);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     if (result.lockedUntil) {
       setLockedUntil(result.lockedUntil);
     } else {
@@ -112,15 +118,29 @@ export default function PinUnlockScreen() {
         style={styles.inner}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <NeoBrutalCard
+          radius={18}
+          offset={4}
+          backgroundColor={colors.highlight}
+          style={styles.badge}
+        >
+          <Ionicons name="lock-closed" size={28} color={colors.highlightText} />
+        </NeoBrutalCard>
         <Text style={[styles.title, { color: colors.text }]}>
           Enter your PIN
         </Text>
+        <Text style={[styles.subtitle, { color: colors.subtext }]}>
+          Your vault never leaves this device
+        </Text>
+        <View style={styles.padSpacer} />
+
         <PinBoxInput
           length={PIN_LENGTH}
           value={pin}
           onChangeText={handleChange}
-          autoFocus={!isLocked && !isChecking}
           editable={!isChecking && !isLocked}
+          onBiometric={hasBiometric ? tryBiometric : undefined}
+          shakeSignal={shakeSignal}
         />
 
         {isChecking && (
@@ -136,11 +156,6 @@ export default function PinUnlockScreen() {
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )
         )}
-        {hasBiometric && (
-          <Pressable onPress={tryBiometric} style={styles.bio}>
-            <Ionicons name="finger-print" size={40} color={colors.text} />
-          </Pressable>
-        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -152,19 +167,28 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: "flex-start",
+    justifyContent: "center",
     alignItems: "center",
     padding: 24,
-    paddingTop: 200,
-    gap: 12,
+    gap: 8,
+  },
+  badge: {
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "900",
-    marginBottom: 8,
   },
-  bio: {
-    marginTop: 24,
+  subtitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  padSpacer: {
+    height: 16,
   },
   spinner: {
     marginTop: 8,

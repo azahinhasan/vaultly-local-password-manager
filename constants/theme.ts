@@ -9,101 +9,89 @@ export interface ThemeTokens {
   highlight: string;
   highlightText: string;
   shadow: string;
+  success: string;
   error: string;
   errorText: string;
 }
 
 export type ThemeMode = "system" | "light" | "dark" | "warm";
 
-export const BORDER_WIDTH = 2.5;
-export const RADIUS = 12;
-export const SHADOW_OFFSET = 5;
+export const BORDER_WIDTH = 2;
+export const RADIUS = 14;
+export const SHADOW_OFFSET = 3;
 
 export const systemLightTheme: ThemeTokens = {
-  background: "#F5F1EA",
+  background: "#F5F0E6",
   surface: "#FFFFFF",
   text: "#1A1A1A",
-  subtext: "#6B6559",
+  subtext: "#6B665C",
   border: "#1A1A1A",
-  accent: "#2D5BFF",
+  accent: "#2F5BFF",
   accentText: "#FFFFFF",
-  highlight: "#FFDE59",
+  highlight: "#FFD84D",
   highlightText: "#1A1A1A",
   shadow: "#1A1A1A",
-  error: "#D93B3B",
+  success: "#1E9E5A",
+  error: "#D9382C",
   errorText: "#FFFFFF",
 };
 
 export const systemDarkTheme: ThemeTokens = {
-  background: "#1A1A1A",
-  surface: "#262626",
-  text: "#F5F1EA",
-  subtext: "#B5AFA2",
-  border: "#F5F1EA",
-  accent: "#2D5BFF",
+  background: "#1C1C1C",
+  surface: "#272727",
+  text: "#F3EEE4",
+  subtext: "#A39E94",
+  border: "#F3EEE4",
+  accent: "#3D63FF",
   accentText: "#FFFFFF",
-  highlight: "#F5C84C",
+  highlight: "#FFD84D",
   highlightText: "#1A1A1A",
-  shadow: "#F5F1EA",
-  error: "#FF6B6B",
+  shadow: "#F3EEE4",
+  success: "#3DC27C",
+  error: "#FF6B5E",
   errorText: "#1A1A1A",
 };
 
 export const warmTheme: ThemeTokens = {
-  background: "#F0EBDD",
-  surface: "#FFFFFF",
-  text: "#1A1A1A",
-  subtext: "#6B6559",
-  border: "#1A1A1A",
-  accent: "#F0603C",
+  background: "#F8E7D1",
+  surface: "#FFF8EC",
+  text: "#2B1A12",
+  subtext: "#7A5F50",
+  border: "#2B1A12",
+  accent: "#E8573A",
   accentText: "#FFFFFF",
-  highlight: "#FFDE59",
-  highlightText: "#1A1A1A",
-  shadow: "#1A1A1A",
-  error: "#D93B3B",
+  highlight: "#FFC145",
+  highlightText: "#2B1A12",
+  shadow: "#2B1A12",
+  success: "#2E8B57",
+  error: "#B3261E",
   errorText: "#FFFFFF",
 };
 
+// Two-color swatch shown on each Appearance tile.
 export const THEME_OPTIONS: {
   mode: ThemeMode;
   label: string;
-  description: string;
-  preview: { background: string; accent: string };
+  preview: [string, string];
 }[] = [
   {
     mode: "system",
-    label: "System Default",
-    description: "Follows your device's light/dark setting",
-    preview: {
-      background: systemLightTheme.background,
-      accent: systemLightTheme.accent,
-    },
+    label: "System default",
+    preview: [systemLightTheme.background, systemDarkTheme.background],
   },
   {
     mode: "light",
     label: "Light",
-    description: "Always light, regardless of device setting",
-    preview: {
-      background: systemLightTheme.background,
-      accent: systemLightTheme.accent,
-    },
+    preview: [systemLightTheme.background, systemLightTheme.accent],
   },
   {
     mode: "dark",
     label: "Dark",
-    description: "Always dark, regardless of device setting",
-    preview: {
-      background: systemDarkTheme.background,
-      accent: systemDarkTheme.accent,
-    },
+    preview: [systemDarkTheme.background, systemDarkTheme.accent],
   },
   {
     mode: "warm",
     label: "Warm",
-    description: "A fixed warm palette that never switches to dark",
-    preview: {
-      background: warmTheme.background,
-      accent: warmTheme.accent,
-    },
+    preview: [warmTheme.background, warmTheme.accent],
   },
 ];

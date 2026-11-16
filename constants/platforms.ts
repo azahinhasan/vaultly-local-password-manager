@@ -1,27 +1,45 @@
 export interface PlatformEntry {
   name: string;
-  color: string;
+  /** Set only for platforms whose color the user picked; otherwise the
+   * monogram color is derived from the name. */
+  color?: string;
+  category: string;
+  /** Epoch ms of the last entry saved with this platform. */
+  lastUsedAt?: number;
 }
 
+export const OTHER_CATEGORY = "Other";
+
+// Display order of category groups; unknown categories sort after these.
+export const CATEGORIES = [
+  "Social",
+  "Work",
+  "Finance",
+  "Entertainment",
+  "Shopping",
+  OTHER_CATEGORY,
+];
+
+const group = (category: string, names: string[]): PlatformEntry[] =>
+  names.map((name) => ({ name, category }));
+
 // Seed data — the starting set of managed platforms on first launch.
-// Users can add, rename, recolor, or remove any of these from Settings.
+// Data, not UI: extend by adding names here.
 export const DEFAULT_PLATFORMS: PlatformEntry[] = [
-  { name: "Google", color: "#4285F4" },
-  { name: "Facebook", color: "#6366F1" },
-  { name: "Microsoft", color: "#16A34A" },
-  { name: "Ubisoft", color: "#F97316" },
-  { name: "Steam", color: "#6e7a95" },
-  { name: "EA", color: "#b87700" },
-  { name: "Sony", color: "#003791" },
+  ...group("Social", [
+    "Facebook", "Instagram", "X", "TikTok", "Snapchat", "LinkedIn", "Reddit", "Pinterest",
+  ]),
+  ...group("Work", [
+    "Google", "GitHub", "Microsoft", "Slack", "Notion", "Zoom", "Dropbox",
+  ]),
+  ...group("Finance", ["Bank", "PayPal", "Wise", "Binance", "Stripe"]),
+  ...group("Entertainment", ["Netflix", "Spotify", "YouTube", "Steam"]),
+  ...group("Shopping", ["Amazon", "eBay", "Alibaba"]),
 ];
 
 export const MAX_PLATFORM_NAME_LENGTH = 16;
 
-// Fallback color for entries with no assigned color (custom platforms
-// that didn't pick one).
-export const DEFAULT_PLATFORM_COLOR = "#9CA3AF";
-
-// Selectable palette for custom (manually-entered or managed) platforms.
+// Selectable palette for platforms whose color the user picks in Manage Platforms.
 export const COLOR_PALETTE = [
   "#4285F4", // blue
   "#6366F1", // indigo
@@ -35,17 +53,11 @@ export const COLOR_PALETTE = [
   "#6B7280", // gray
 ];
 
-/** The color dot to show for an entry: managed platforms use their
- * assigned color; unmanaged (manually-entered) platforms use their chosen
- * color, or the default. */
-export function getPlatformColor(
-  platform: string,
-  managedPlatforms: PlatformEntry[],
-  customColor?: string,
-): string {
-  const managed = managedPlatforms.find((p) => p.name === platform);
-  if (managed) {
-    return managed.color;
+/** Pastel monogram color from a hash of the name: hsl(h, 85%, 78%). */
+export function monogramColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   }
-  return customColor ?? DEFAULT_PLATFORM_COLOR;
+  return `hsl(${hash % 360}, 85%, 78%)`;
 }

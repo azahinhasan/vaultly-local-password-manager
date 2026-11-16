@@ -2,7 +2,12 @@ import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
-import { COLOR_PALETTE, MAX_PLATFORM_NAME_LENGTH } from "@/constants/platforms";
+import { BrutalChip, BrutalIconButton, Monogram } from "@/components/Brutal";
+import {
+  CATEGORIES,
+  MAX_PLATFORM_NAME_LENGTH,
+  OTHER_CATEGORY,
+} from "@/constants/platforms";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatforms } from "@/context/PlatformsContext";
@@ -28,7 +33,8 @@ interface FormState {
   mode: "add" | "edit";
   originalName?: string;
   name: string;
-  color: string;
+  color?: string;
+  category: string;
 }
 
 export default function ManagePlatformsScreen() {
@@ -54,12 +60,12 @@ export default function ManagePlatformsScreen() {
 
   const openAddForm = () => {
     setFormError("");
-    setForm({ mode: "add", name: "", color: COLOR_PALETTE[0] });
+    setForm({ mode: "add", name: "", category: OTHER_CATEGORY });
   };
 
-  const openEditForm = (name: string, color: string) => {
+  const openEditForm = (name: string, category: string, color?: string) => {
     setFormError("");
-    setForm({ mode: "edit", originalName: name, name, color });
+    setForm({ mode: "edit", originalName: name, name, category, color });
   };
 
   const closeForm = () => {
@@ -76,8 +82,8 @@ export default function ManagePlatformsScreen() {
     setIsSaving(true);
     const result =
       form.mode === "add"
-        ? await addPlatform(form.name, form.color)
-        : await updatePlatform(form.originalName!, form.name, form.color);
+        ? await addPlatform(form.name, form.category, form.color)
+        : await updatePlatform(form.originalName!, form.name, form.category, form.color);
     setIsSaving(false);
 
     if (result.success) {
@@ -122,13 +128,17 @@ export default function ManagePlatformsScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
     >
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
-        </Pressable>
+        <BrutalIconButton
+          icon="chevron-back"
+          label="Back"
+          onPress={() => router.back()}
+        />
         <Text style={[styles.title, { color: colors.text }]}>Platforms</Text>
-        <Pressable onPress={openAddForm} hitSlop={12}>
-          <Ionicons name="add-circle" size={28} color={colors.accent} />
-        </Pressable>
+        <BrutalIconButton
+          icon="add"
+          label="Add platform"
+          onPress={openAddForm}
+        />
       </View>
 
       <FlatList
@@ -137,16 +147,14 @@ export default function ManagePlatformsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <NeoBrutalCard onPress={() => openEditForm(item.name, item.color)}>
+          <NeoBrutalCard onPress={() => openEditForm(item.name, item.category, item.color)}>
             <View style={styles.row}>
-              <View
-                style={[
-                  styles.colorDot,
-                  { backgroundColor: item.color, borderColor: colors.border },
-                ]}
-              />
+              <Monogram name={item.name} color={item.color} size={34} />
               <Text style={[styles.rowLabel, { color: colors.text }]}>
                 {item.name}
+              </Text>
+              <Text style={[styles.rowCategory, { color: colors.subtext }]}>
+                {item.category}
               </Text>
               <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
             </View>
@@ -190,13 +198,24 @@ export default function ManagePlatformsScreen() {
                   autoFocus
                 />
 
+                <View style={styles.categories}>
+                  {CATEGORIES.map((c) => (
+                    <BrutalChip
+                      key={c}
+                      label={c}
+                      selected={form?.category === c}
+                      onPress={() =>
+                        setForm((prev) => (prev ? { ...prev, category: c } : prev))
+                      }
+                    />
+                  ))}
+                </View>
+
                 <ColorSwatchPicker
                   value={form?.color}
-                  onChange={(color) => {
-                    if (color) {
-                      setForm((prev) => (prev ? { ...prev, color } : prev));
-                    }
-                  }}
+                  onChange={(color) =>
+                    setForm((prev) => (prev ? { ...prev, color } : prev))
+                  }
                 />
 
                 {!!formError && (
@@ -268,11 +287,14 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
   },
-  colorDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 5,
-    borderWidth: BORDER_WIDTH,
+  rowCategory: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  categories: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   rowLabel: {
     flex: 1,

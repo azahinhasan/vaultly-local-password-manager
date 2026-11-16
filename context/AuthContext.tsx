@@ -15,6 +15,8 @@ import {
 } from "../utils/pin-utils";
 import { disableBiometric, unlockWithBiometricKey } from "../utils/biometric";
 import { loadEncryptedVault, saveEncryptedVault } from "../utils/vault-storage";
+import { AppState } from "react-native";
+import { AUTO_LOCK_OPTIONS, useSecurity } from "./SecurityContext";
 
 interface UnlockResult {
   success: boolean;
@@ -38,6 +40,8 @@ interface AuthContextType {
   failedAttempts: number;
   lockedUntil: number | null;
   vaultKey: Uint8Array | null;
+  /** Forgets the vault key and returns to the PIN screen. */
+  lock: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,6 +53,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [vaultKey, setVaultKey] = useState<Uint8Array | null>(null);
+
+  const { autoLock } = useSecurity();
+
+  const lock = () => {
+    setVaultKey(null);
+    setIsAuthenticated(false);
+  };
+
+  // Auto-lock: once the app has been in the background for the chosen time.
+  useEffect(() => {
+    const delay = AUTO_LOCK_OPTIONS.find((o) => o.value === autoLock)!.ms;
+    let backgroundedAt: number | null = null;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") {
+        backgroundedAt = Date.now();
+      } else if (state === "active" && backgroundedAt !== null) {
+        if (Date.now() - backgroundedAt >= delay) lock();
+        backgroundedAt = null;
+      }
+    });
+    return () => sub.remove();
+  }, [autoLock]);
 
   // Check if PIN is already set up, and restore any active lockout, on app launch
   useEffect(() => {
@@ -246,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         failedAttempts,
         lockedUntil,
         vaultKey,
+        lock,
       }}
     >
       {children}
