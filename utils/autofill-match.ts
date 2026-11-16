@@ -75,3 +75,55 @@ export function rankForTarget<T extends Matchable>(
   }
   return { matches, others };
 }
+
+const GENERIC_PACKAGE_PARTS = new Set(["com", "org", "net", "io", "android", "app", "mobile", "www"]);
+const SECOND_LEVEL = new Set(["co", "com", "org", "net", "gov", "ac", "edu"]);
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * A readable platform name for a login being saved: a built-in platform when
+ * the site/app is known, otherwise derived from the domain ("m.example.com" ->
+ * "Example") or package ("com.corp.app" -> "Corp").
+ */
+export function guessPlatformName(
+  target: FillTarget,
+  platformTargets: Record<string, Targets>,
+): string {
+  const known = Object.keys(platformTargets).find((name) =>
+    matchesTarget({ platform: name }, target, platformTargets),
+  );
+  if (known) return known;
+
+  if (target.webDomain) {
+    const parts = normalizeSite(target.webDomain).split(".");
+    let i = parts.length - 2; // the label before the TLD
+    if (parts.length >= 3 && SECOND_LEVEL.has(parts[i]) && parts[parts.length - 1].length === 2) i--; // example.co.uk
+    if (parts[i]) return capitalize(parts[i]);
+  }
+  if (target.packageName) {
+    const part = target.packageName.split(".").find((p) => !GENERIC_PACKAGE_PARTS.has(p.toLowerCase()));
+    if (part) return capitalize(part);
+  }
+  return "";
+}
+
+/**
+ * The saved login (if any) for this site/app and username. Lets the save
+ * screen say "already saved" or offer to update the password instead of
+ * adding a duplicate.
+ */
+export function findExistingEntry<T extends Matchable & { username?: string; email?: string }>(
+  entries: T[],
+  target: FillTarget,
+  username: string,
+  platformTargets: Record<string, Targets>,
+): T | undefined {
+  const u = username.trim().toLowerCase();
+  if (!u) return undefined; // a blank username never "matches" an entry that has none
+  return entries.find(
+    (e) =>
+      matchesTarget(e, target, platformTargets) &&
+      ((e.username ?? "").toLowerCase() === u || (e.email ?? "").toLowerCase() === u),
+  );
+}

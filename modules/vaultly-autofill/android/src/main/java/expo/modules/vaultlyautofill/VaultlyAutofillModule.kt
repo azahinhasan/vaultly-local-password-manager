@@ -36,8 +36,11 @@ class VaultlyAutofillModule : Module() {
       val activity = appContext.currentActivity as? VaultlyAutofillActivity
         ?: return@Function null
       mapOf(
+        "mode" to activity.mode,
         "packageName" to activity.targetPackage,
-        "webDomain" to activity.targetDomain
+        "webDomain" to activity.targetDomain,
+        "username" to activity.saveUsername,
+        "password" to activity.savePassword
       )
     }
 

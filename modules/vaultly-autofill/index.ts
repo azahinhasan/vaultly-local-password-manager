@@ -2,10 +2,18 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { Platform } from "react-native";
 import type { FillTarget } from "../../utils/autofill-match";
 
+/** What Android asked Vaultly to do: fill a login, or save a submitted one. */
+export interface AutofillRequest extends FillTarget {
+  mode: "fill" | "save";
+  /** Save mode only: the values that were typed into the form. */
+  username: string | null;
+  password: string | null;
+}
+
 interface NativeAutofill {
   isEnabled(): boolean;
   openSettings(): boolean;
-  getRequest(): FillTarget | null;
+  getRequest(): AutofillRequest | null;
   finishWithCredentials(username: string, password: string): void;
   cancel(): void;
 }
@@ -27,7 +35,7 @@ export const openAutofillSettings = (): void => {
 };
 
 /** The site/app that asked for a login, or null outside an autofill request. */
-export const getAutofillRequest = (): FillTarget | null =>
+export const getAutofillRequest = (): AutofillRequest | null =>
   native?.getRequest() ?? null;
 
 export const finishWithCredentials = (username: string, password: string) =>

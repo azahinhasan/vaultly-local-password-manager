@@ -11,6 +11,7 @@ import android.service.autofill.FillCallback
 import android.service.autofill.FillRequest
 import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
+import android.service.autofill.SaveInfo
 import android.service.autofill.SaveRequest
 import android.text.InputType
 import android.util.Log
@@ -19,9 +20,12 @@ import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
 
 /**
- * The vault is encrypted and locked here, so this service never sees any
- * credentials. It only finds the login fields and offers one "Unlock Vaultly"
- * suggestion; the unlock + pick happens in [VaultlyAutofillActivity].
+ * The vault is encrypted and locked here, so this service never reads saved
+ * credentials. Filling: it finds the login fields and offers one "Unlock
+ * Vaultly" suggestion; the unlock + pick happens in [VaultlyAutofillActivity].
+ * Saving: when a login/registration form is submitted, Android shows its
+ * "Save to Vaultly?" prompt and hands the typed values to [onSaveRequest],
+ * which passes them to the same activity to be stored in the encrypted vault.
  */
 @RequiresApi(Build.VERSION_CODES.O)
 class VaultlyAutofillService : AutofillService() {
@@ -68,15 +72,60 @@ class VaultlyAutofillService : AutofillService() {
     parsed.usernameId?.let { dataset.setValue(it, null) }
     parsed.passwordId?.let { dataset.setValue(it, null) }
 
-    callback.onSuccess(FillResponse.Builder().addDataset(dataset.build()).build())
+    val response = FillResponse.Builder().addDataset(dataset.build())
+
+    // Ask Android to offer "Save to Vaultly?" once this form is submitted. A
+    // form without a password field (e.g. a username-only first step) isn't
+    // worth saving.
+    parsed.passwordId?.let { passwordId ->
+      val save = SaveInfo.Builder(
+        SaveInfo.SAVE_DATA_TYPE_USERNAME or SaveInfo.SAVE_DATA_TYPE_PASSWORD,
+        arrayOf(passwordId)
+      )
+      parsed.usernameId?.let { save.setOptionalIds(arrayOf(it)) }
+      // Many apps close the login screen on success instead of submitting.
+      save.setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE)
+      response.setSaveInfo(save.build())
+    }
+
+    callback.onSuccess(response.build())
   }
 
   override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
-    callback.onSuccess()
+    val structure = request.fillContexts.lastOrNull()?.structure
+    val parsed = structure?.let { FieldParser().parse(it) }
+    val password = parsed?.passwordText
+    if (parsed == null || password.isNullOrEmpty() || parsed.packageName == packageName) {
+      callback.onSuccess()
+      return
+    }
+    Log.d(TAG, "save request pkg=${parsed.packageName} domain=${parsed.webDomain} hasUser=${!parsed.usernameText.isNullOrEmpty()}")
+
+    // The vault is locked, so hand the values to the unlock screen, which
+    // stores them once you authenticate. Needs API 28; older phones skip it.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+      callback.onSuccess()
+      return
+    }
+    val saveIntent = Intent(this, VaultlyAutofillActivity::class.java)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      .putExtra(VaultlyAutofillActivity.EXTRA_MODE, VaultlyAutofillActivity.MODE_SAVE)
+      .putExtra(VaultlyAutofillActivity.EXTRA_PACKAGE, parsed.packageName)
+      .putExtra(VaultlyAutofillActivity.EXTRA_DOMAIN, parsed.webDomain)
+      .putExtra(VaultlyAutofillActivity.EXTRA_SAVE_USERNAME, parsed.usernameText)
+      .putExtra(VaultlyAutofillActivity.EXTRA_SAVE_PASSWORD, password)
+    val sender = PendingIntent.getActivity(
+      this,
+      SAVE_REQUEST_CODE,
+      saveIntent,
+      PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    ).intentSender
+    callback.onSuccess(sender)
   }
 
   companion object {
     private const val REQUEST_CODE = 4217
+    private const val SAVE_REQUEST_CODE = 4218
     const val TAG = "VaultlyAutofill"
   }
 }
@@ -86,21 +135,28 @@ private class Parsed {
   var webDomain: String? = null
   var usernameId: AutofillId? = null
   var passwordId: AutofillId? = null
+  var usernameText: String? = null
+  var passwordText: String? = null
 }
 
 /** Finds the first password field and the username/email field before it. */
 @RequiresApi(Build.VERSION_CODES.O)
 private class FieldParser {
   private val result = Parsed()
-  private var lastUserCandidate: AutofillId? = null
-  private var firstUserCandidate: AutofillId? = null
+  private var lastUser: Pair<AutofillId, String?>? = null
+  private var firstUser: Pair<AutofillId, String?>? = null
 
   fun parse(structure: AssistStructure): Parsed {
     result.packageName = structure.activityComponent?.packageName
     for (i in 0 until structure.windowNodeCount) {
       visit(structure.getWindowNodeAt(i).rootViewNode)
     }
-    if (result.usernameId == null) result.usernameId = firstUserCandidate
+    if (result.usernameId == null) {
+      firstUser?.let {
+        result.usernameId = it.first
+        result.usernameText = it.second
+      }
+    }
     return result
   }
 
@@ -114,11 +170,17 @@ private class FieldParser {
       when (classify(node)) {
         Kind.PASSWORD -> if (result.passwordId == null) {
           result.passwordId = id
-          if (result.usernameId == null) result.usernameId = lastUserCandidate
+          result.passwordText = textOf(node)
+          if (result.usernameId == null) {
+            lastUser?.let {
+              result.usernameId = it.first
+              result.usernameText = it.second
+            }
+          }
         }
         Kind.USERNAME -> {
-          lastUserCandidate = id
-          if (firstUserCandidate == null) firstUserCandidate = id
+          lastUser = id to textOf(node)
+          if (firstUser == null) firstUser = lastUser
         }
         Kind.OTHER -> {}
       }
@@ -126,6 +188,11 @@ private class FieldParser {
 
     for (i in 0 until node.childCount) visit(node.getChildAt(i))
   }
+
+  // What the user typed (only present in save requests).
+  private fun textOf(node: AssistStructure.ViewNode): String? =
+    node.autofillValue?.takeIf { it.isText }?.textValue?.toString()
+      ?: node.text?.toString()
 
   private enum class Kind { USERNAME, PASSWORD, OTHER }
 

@@ -1,6 +1,7 @@
-import { Monogram } from "@/components/Brutal";
+import { BrutalChip, BrutalTextField, Monogram } from "@/components/Brutal";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PinBoxInput } from "@/components/PinBoxInput";
+import { SaveLogin } from "./SaveLogin";
 import { PLATFORM_TARGETS } from "@/constants/platforms";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { PlatformsProvider, usePlatforms } from "@/context/PlatformsContext";
@@ -9,12 +10,15 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { FillTarget, rankForTarget } from "@/utils/autofill-match";
 import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
+import { filterEntries, usedCategories } from "@/utils/vault-filter";
 import { loadEncryptedVault, VaultEntry } from "@/utils/vault-storage";
+import { Ionicons } from "@expo/vector-icons";
 import { cancelAutofill, finishWithCredentials, getAutofillRequest } from "@/modules/vaultly-autofill";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -53,7 +57,9 @@ export default function AutofillApp() {
 function AutofillFlow() {
   const { vaultKey, isLoading, isPinSetup } = useAuth();
   const colors = useThemeColors();
-  const target = useMemo(() => getAutofillRequest() ?? NO_TARGET, []);
+  const request = useMemo(() => getAutofillRequest(), []);
+  const target = request ?? NO_TARGET;
+  const saving = request?.mode === "save";
 
   if (isLoading) {
     return (
@@ -72,12 +78,21 @@ function AutofillFlow() {
     );
   }
 
-  return vaultKey ? <PickLogin target={target} /> : <Unlock target={target} />;
+  if (!vaultKey) return <Unlock target={target} saving={saving} />;
+  return saving ? (
+    <SaveLogin
+      target={target}
+      username={request?.username ?? ""}
+      password={request?.password ?? ""}
+    />
+  ) : (
+    <PickLogin target={target} />
+  );
 }
 
 const targetLabel = (t: FillTarget) => t.webDomain || t.packageName || "this app";
 
-function Unlock({ target }: { target: FillTarget }) {
+function Unlock({ target, saving }: { target: FillTarget; saving: boolean }) {
   const { unlockWithPin, unlockWithBiometric, lockedUntil } = useAuth();
   const colors = useThemeColors();
   const [pin, setPin] = useState("");
@@ -135,7 +150,7 @@ function Unlock({ target }: { target: FillTarget }) {
           <>
             <Text style={[styles.title, { color: colors.text }]}>Unlock Vaultly</Text>
             <Text style={[styles.subtitle, { color: colors.subtext }]}>
-              to fill a login for {targetLabel(target)}
+              {saving ? `to save this login from ${targetLabel(target)}` : `to fill a login for ${targetLabel(target)}`}
             </Text>
           </>
         }
@@ -150,22 +165,51 @@ function Unlock({ target }: { target: FillTarget }) {
   );
 }
 
+type Row =
+  | { kind: "header"; key: string; title: string }
+  | { kind: "entry"; key: string; entry: VaultEntry };
+
 function PickLogin({ target }: { target: FillTarget }) {
   const { vaultKey } = useAuth();
   const { platforms } = usePlatforms();
   const colors = useThemeColors();
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (!vaultKey) return;
     loadEncryptedVault(vaultKey).then(setEntries).catch(() => setFailed(true));
   }, [vaultKey]);
 
-  const { matches, others } = useMemo(
-    () => rankForTarget(entries ?? [], target, PLATFORM_TARGETS),
-    [entries, target],
+  const categories = useMemo(
+    () => usedCategories(entries ?? [], platforms),
+    [entries, platforms],
   );
+
+  // Search/category narrow the list first; the site's own logins still come first.
+  const rows = useMemo<Row[]>(() => {
+    const visible = filterEntries(entries ?? [], query, category, platforms);
+    const { matches, others } = rankForTarget(visible, target, PLATFORM_TARGETS);
+    const out: Row[] = [];
+    if (matches.length > 0) {
+      out.push({ kind: "header", key: "h-matches", title: "Matches" });
+      matches.forEach((entry) => out.push({ kind: "entry", key: entry.id, entry }));
+    }
+    if (others.length > 0) {
+      out.push({
+        kind: "header",
+        key: "h-others",
+        title:
+          matches.length > 0
+            ? "Other logins"
+            : "No saved login matches this site — choose carefully",
+      });
+      others.forEach((entry) => out.push({ kind: "entry", key: entry.id, entry }));
+    }
+    return out;
+  }, [entries, query, category, platforms, target]);
 
   if (failed) {
     return <Message title="Couldn't open your vault" body="Close this and try again." />;
@@ -178,12 +222,15 @@ function PickLogin({ target }: { target: FillTarget }) {
     );
   }
 
-  const row = (entry: VaultEntry) => {
+  const renderRow = ({ item }: { item: Row }) => {
+    if (item.kind === "header") {
+      return <Text style={[styles.section, { color: colors.subtext }]}>{item.title}</Text>;
+    }
+    const { entry } = item;
     const color = platforms.find((p) => p.name === entry.platform)?.color;
     const login = entry.username || entry.email || "No username";
     return (
       <NeoBrutalCard
-        key={entry.id}
         onPress={() => finishWithCredentials(entry.username || entry.email || "", entry.password)}
         accessibilityLabel={`Fill ${entry.platform}, ${login}`}
       >
@@ -216,25 +263,40 @@ function PickLogin({ target }: { target: FillTarget }) {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {matches.length > 0 && (
-          <>
-            <Text style={[styles.section, { color: colors.subtext }]}>Matches</Text>
-            {matches.map(row)}
-          </>
+      <View style={styles.filters}>
+        <BrutalTextField
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by platform, username or email"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          accessibilityLabel="Search logins"
+          left={<Ionicons name="search" size={18} color={colors.subtext} style={styles.searchIcon} />}
+        />
+        {categories.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <BrutalChip label="All" selected={!category} onPress={() => setCategory(null)} />
+            {categories.map((c) => (
+              <BrutalChip key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />
+            ))}
+          </ScrollView>
         )}
-        {others.length > 0 && (
-          <>
-            <Text style={[styles.section, { color: colors.subtext }]}>
-              {matches.length > 0 ? "Other logins" : "No saved login matches this site — choose carefully"}
-            </Text>
-            {others.map(row)}
-          </>
-        )}
-        {entries.length === 0 && (
-          <Text style={[styles.subtitle, { color: colors.subtext }]}>Your vault is empty.</Text>
-        )}
-      </ScrollView>
+      </View>
+
+      <FlatList
+        data={rows}
+        keyExtractor={(r) => r.key}
+        renderItem={renderRow}
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={15}
+        ListEmptyComponent={
+          <Text style={[styles.subtitle, { color: colors.subtext }]}>
+            {entries.length === 0 ? "Your vault is empty." : "No logins match your search."}
+          </Text>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -263,6 +325,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 24, paddingBottom: 8 },
   headerText: { flexShrink: 1, gap: 2 },
   list: { padding: 24, gap: 12 },
+  filters: { paddingHorizontal: 24, gap: 12 },
+  searchIcon: { marginRight: 10 },
+  chips: { gap: 8, paddingRight: 24 },
   section: { fontSize: 13, fontWeight: "800", marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   rowText: { flex: 1, gap: 2 },

@@ -44,6 +44,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -115,10 +116,15 @@ export default function SettingsScreen() {
         await disableBiometric();
         setBiometricOn(false);
       } else {
-        const auth = await LocalAuthentication.authenticateAsync({
-          promptMessage: "Confirm to enable biometric unlock",
-        });
-        if (!auth.success) return;
+        // Android's secure storage already asks for a fingerprint when saving
+        // the protected key, so only confirm separately elsewhere (otherwise
+        // it prompts twice).
+        if (Platform.OS !== "android") {
+          const auth = await LocalAuthentication.authenticateAsync({
+            promptMessage: "Confirm to enable biometric unlock",
+          });
+          if (!auth.success) return;
+        }
         await enableBiometric(vaultKey);
         setBiometricOn(true);
       }

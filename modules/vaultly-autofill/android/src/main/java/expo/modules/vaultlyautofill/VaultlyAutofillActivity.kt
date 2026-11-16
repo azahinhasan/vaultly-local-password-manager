@@ -24,6 +24,13 @@ class VaultlyAutofillActivity : ReactActivity() {
     private set
   var targetDomain: String? = null
     private set
+  /** "fill" (default) or "save" (a submitted login to store in the vault). */
+  var mode: String = MODE_FILL
+    private set
+  var saveUsername: String? = null
+    private set
+  var savePassword: String? = null
+    private set
   private var usernameId: AutofillId? = null
   private var passwordId: AutofillId? = null
 
@@ -35,6 +42,9 @@ class VaultlyAutofillActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     targetPackage = intent.getStringExtra(EXTRA_PACKAGE)
     targetDomain = intent.getStringExtra(EXTRA_DOMAIN)
+    mode = intent.getStringExtra(EXTRA_MODE) ?: MODE_FILL
+    saveUsername = intent.getStringExtra(EXTRA_SAVE_USERNAME)
+    savePassword = intent.getStringExtra(EXTRA_SAVE_PASSWORD)
     @Suppress("DEPRECATION")
     usernameId = intent.getParcelableExtra(EXTRA_USERNAME_ID)
     @Suppress("DEPRECATION")
@@ -70,6 +80,11 @@ class VaultlyAutofillActivity : ReactActivity() {
   }
 
   companion object {
+    const val MODE_FILL = "fill"
+    const val MODE_SAVE = "save"
+    const val EXTRA_MODE = "vaultly.mode"
+    const val EXTRA_SAVE_USERNAME = "vaultly.saveUsername"
+    const val EXTRA_SAVE_PASSWORD = "vaultly.savePassword"
     const val EXTRA_PACKAGE = "vaultly.targetPackage"
     const val EXTRA_DOMAIN = "vaultly.targetDomain"
     const val EXTRA_USERNAME_ID = "vaultly.usernameId"

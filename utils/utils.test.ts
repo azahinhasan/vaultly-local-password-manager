@@ -110,3 +110,32 @@ test("autofill matching", () => {
   assert.deepEqual(r.matches, [ig]);
   assert.equal(r.others.length, 1);
 });
+
+import { findExistingEntry, guessPlatformName } from "./autofill-match.ts";
+
+test("save-login helpers", () => {
+  const T = PLATFORM_TARGETS;
+  const t = (webDomain: string | null, packageName: string | null = null) => ({ webDomain, packageName });
+  assert.equal(guessPlatformName(t("m.facebook.com"), T), "Facebook");
+  assert.equal(guessPlatformName(t(null, "com.instagram.android"), T), "Instagram");
+  assert.equal(guessPlatformName(t("login.shop.example.com"), T), "Example");
+  assert.equal(guessPlatformName(t("www.mybank.co.uk"), T), "Mybank");
+  assert.equal(guessPlatformName(t(null, "com.corp.app"), T), "Corp");
+  assert.equal(guessPlatformName(t(null, null), T), "");
+
+  const entries = [
+    { platform: "Facebook", username: "Zahin", password: "a" },
+    { platform: "Facebook", email: "z@x.com", password: "b" },
+    { platform: "Netflix", username: "zahin", password: "c" },
+  ];
+  const fb = t("m.facebook.com");
+  assert.equal(findExistingEntry(entries, fb, "zahin", T)?.password, "a"); // case-insensitive username
+  assert.equal(findExistingEntry(entries, fb, "z@x.com", T)?.password, "b"); // email
+  assert.equal(findExistingEntry(entries, fb, "nobody", T), undefined);
+  assert.equal(findExistingEntry(entries, fb, "", T), undefined); // blank never matches a blank
+});
+
+test("search also matches a saved website", () => {
+  const e = [{ platform: "MyBank", website: "secure.bank.example.org" }, { platform: "Other" }];
+  assert.equal(filterEntries(e, "bank.example", null, DEFAULT_PLATFORMS).length, 1);
+});
