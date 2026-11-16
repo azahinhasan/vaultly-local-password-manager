@@ -19,12 +19,16 @@ export const AUTO_LOCK_OPTIONS: { value: AutoLock; label: string; ms: number }[]
 
 const AUTO_LOCK_KEY = "autoLock";
 const HIDE_KEY = "hideInSwitcher";
+const BREACH_KEY = "breachAlerts";
 
 interface SecurityContextType {
   autoLock: AutoLock;
   setAutoLock: (v: AutoLock) => void;
   hideInSwitcher: boolean;
   setHideInSwitcher: (v: boolean) => void;
+  /** Opt-in: check passwords against known breaches (sends a 5-char hash prefix online). */
+  breachAlerts: boolean;
+  setBreachAlerts: (v: boolean) => void;
 }
 
 const SecurityContext = createContext<SecurityContextType | undefined>(
@@ -34,9 +38,11 @@ const SecurityContext = createContext<SecurityContextType | undefined>(
 export function SecurityProvider({ children }: { children: ReactNode }) {
   const [autoLock, setAutoLockState] = useState<AutoLock>("1min");
   const [hideInSwitcher, setHideState] = useState(true);
+  const [breachAlerts, setBreachState] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY]).then(([lock, hide]) => {
+    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY, BREACH_KEY]).then(([lock, hide, breach]) => {
+      setBreachState(breach[1] === "true");
       if (AUTO_LOCK_OPTIONS.some((o) => o.value === lock[1])) {
         setAutoLockState(lock[1] as AutoLock);
       }
@@ -63,9 +69,21 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(HIDE_KEY, String(v));
   };
 
+  const setBreachAlerts = (v: boolean) => {
+    setBreachState(v);
+    AsyncStorage.setItem(BREACH_KEY, String(v));
+  };
+
   return (
     <SecurityContext.Provider
-      value={{ autoLock, setAutoLock, hideInSwitcher, setHideInSwitcher }}
+      value={{
+        autoLock,
+        setAutoLock,
+        hideInSwitcher,
+        setHideInSwitcher,
+        breachAlerts,
+        setBreachAlerts,
+      }}
     >
       {children}
     </SecurityContext.Provider>

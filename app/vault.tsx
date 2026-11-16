@@ -9,14 +9,16 @@ import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatforms } from "@/context/PlatformsContext";
+import { useSecurity } from "@/context/SecurityContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import { pwnedCount } from "@/utils/breach";
 import { filterEntries, usedCategories } from "@/utils/vault-filter";
 import { loadEncryptedVault, VaultEntry } from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { Redirect, useRouter } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -39,7 +41,10 @@ export default function VaultScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const [snackbar, showSnackbar] = useSnackbar();
+  const { breachAlerts } = useSecurity();
 
+  // entry id -> times its password was seen in known breaches (only > 0 kept)
+  const [breaches, setBreaches] = useState<Record<string, number>>({});
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -78,6 +83,30 @@ export default function VaultScreen() {
     () => filterEntries(entries ?? [], query, activeCategory, platforms),
     [entries, query, activeCategory, platforms],
   );
+
+  // Opt-in breach check, one entry at a time. A failed lookup (offline) just
+  // leaves that entry unmarked; results are cached per session in breach.ts.
+  useEffect(() => {
+    if (!breachAlerts || !entries) {
+      setBreaches({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      for (const entry of entries) {
+        try {
+          const count = await pwnedCount(entry.password);
+          if (cancelled) return;
+          if (count > 0) setBreaches((b) => ({ ...b, [entry.id]: count }));
+        } catch {
+          return; // service unreachable: stop quietly, retry next time
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [breachAlerts, entries]);
 
   if (!vaultKey) {
     return <Redirect href="/" />;
@@ -223,6 +252,21 @@ export default function VaultScreen() {
                     >
                       {isRevealed ? item.password : "••••••••••"}
                     </Text>
+                    {!!breaches[item.id] && (
+                      <View style={styles.breachRow}>
+                        <Ionicons
+                          name="warning"
+                          size={13}
+                          color={colors.error}
+                        />
+                        <Text
+                          style={[styles.breachText, { color: colors.error }]}
+                          numberOfLines={1}
+                        >
+                          Found in breaches ({breaches[item.id].toLocaleString()}×)
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <BrutalIconButton
                     icon={isRevealed ? "eye-off-outline" : "eye-outline"}
@@ -347,6 +391,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 1,
+  },
+  breachRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  breachText: {
+    fontSize: 12,
+    fontWeight: "800",
+    flexShrink: 1,
   },
   fab: {
     position: "absolute",

@@ -66,3 +66,18 @@ test("groupByCategory", () => {
   assert.equal(g[0].title, "Social");
   assert.equal(g.reduce((n, x) => n + x.data.length, 0), DEFAULT_PLATFORMS.length);
 });
+
+import { countInRange, splitHash } from "./pwned-range.ts";
+
+test("pwned range parsing", () => {
+  // SHA-1("password") = 5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8
+  const { prefix, suffix } = splitHash("5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8");
+  assert.equal(prefix, "5BAA6");
+  assert.equal(suffix, "1E4C9B93F3F0682250B6CF8331B7EE68FD8");
+  const body = `0018A45C4D1DEF81644B54AB7F969B88D65:1\r\n${suffix}:10434004\r\nFFFF0000000000000000000000000000000:0`;
+  assert.equal(countInRange(body, suffix), 10434004);
+  assert.equal(countInRange(body, "0018A45C4D1DEF81644B54AB7F969B88D65"), 1);
+  assert.equal(countInRange(body, "NOTPRESENT"), 0);
+  // padding entries (count 0) are not hits
+  assert.equal(countInRange(body, "FFFF0000000000000000000000000000000"), 0);
+});

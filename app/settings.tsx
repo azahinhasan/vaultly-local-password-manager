@@ -30,6 +30,7 @@ import {
   isBiometricAvailable,
   isBiometricEnabled,
 } from "@/utils/biometric";
+import { pwnedCount } from "@/utils/breach";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -47,8 +48,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SettingsScreen() {
   const { vaultKey, verifyCurrentPin } = useAuth();
-  const { autoLock, setAutoLock, hideInSwitcher, setHideInSwitcher } =
-    useSecurity();
+  const {
+    autoLock,
+    setAutoLock,
+    hideInSwitcher,
+    setHideInSwitcher,
+    breachAlerts,
+    setBreachAlerts,
+  } = useSecurity();
   const { mode, setMode } = useTheme();
   const router = useRouter();
   const colors = useThemeColors();
@@ -65,6 +72,7 @@ export default function SettingsScreen() {
     string | null
   >(null);
   const [importPinError, setImportPinError] = useState("");
+  const [isCheckingBreaches, setIsCheckingBreaches] = useState(false);
   const [erasePinOpen, setErasePinOpen] = useState(false);
   const [erasePinError, setErasePinError] = useState("");
 
@@ -343,6 +351,64 @@ export default function SettingsScreen() {
   const autoLockLabel = AUTO_LOCK_OPTIONS.find((o) => o.value === autoLock)!
     .label;
 
+  const toggleBreachAlerts = () => {
+    if (breachAlerts) {
+      setBreachAlerts(false);
+      return;
+    }
+    setDialog({
+      title: "Turn on breach alerts?",
+      message:
+        "Passwords are checked against the Have I Been Pwned database. Your password never leaves this device — only the first 5 characters of its one-way hash are sent over the internet.",
+      options: [{ label: "Turn on", onPress: () => setBreachAlerts(true) }],
+    });
+  };
+
+  const checkVaultForBreaches = async () => {
+    setIsCheckingBreaches(true);
+    try {
+      const entries = await loadEncryptedVault(vaultKey);
+      if (entries.length === 0) {
+        setDialog({
+          title: "Nothing to check",
+          message: "Your vault is empty.",
+          options: [{ label: "OK" }],
+        });
+        return;
+      }
+
+      const breached: string[] = [];
+      for (const entry of entries) {
+        if ((await pwnedCount(entry.password)) > 0) {
+          breached.push(entry.platform);
+        }
+      }
+
+      setDialog(
+        breached.length === 0
+          ? {
+              title: "No known breaches",
+              message: `None of your ${entries.length} passwords were found in known breaches.`,
+              options: [{ label: "OK" }],
+            }
+          : {
+              title: `${breached.length} breached ${breached.length === 1 ? "password" : "passwords"}`,
+              message: `Found in known breaches: ${[...new Set(breached)].join(", ")}. Change these passwords.`,
+              options: [{ label: "OK" }],
+            },
+      );
+    } catch {
+      setDialog({
+        title: "Couldn't check",
+        message:
+          "The breach service couldn't be reached. Check your connection and try again.",
+        options: [{ label: "OK" }],
+      });
+    } finally {
+      setIsCheckingBreaches(false);
+    }
+  };
+
   const chooseAutoLock = () =>
     setDialog({
       title: "Auto-lock",
@@ -478,6 +544,17 @@ export default function SettingsScreen() {
               label="Hide in app switcher"
             />,
           )}
+          {row(
+            "alert-circle-outline",
+            "Breach alerts",
+            toggleBreachAlerts,
+            <ToggleSwitch
+              value={breachAlerts}
+              onValueChange={toggleBreachAlerts}
+              label="Breach alerts"
+            />,
+            "Warn about passwords found in breaches",
+          )}
         </View>
 
         <SectionLabel>Data</SectionLabel>
@@ -487,6 +564,14 @@ export default function SettingsScreen() {
           )}
           {row("download-outline", "Import vault", handleImport)}
           {row("share-outline", "Export vault", handleExport)}
+          {row(
+            "shield-checkmark-outline",
+            isCheckingBreaches ? "Checking..." : "Check vault for breaches",
+            isCheckingBreaches ? undefined : checkVaultForBreaches,
+            isCheckingBreaches ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : undefined,
+          )}
           {row(
             "refresh",
             isCheckingUpdate ? "Checking..." : "Check for updates",

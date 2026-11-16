@@ -10,7 +10,9 @@ import { PlatformSheet } from "@/components/PlatformSheet";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatforms } from "@/context/PlatformsContext";
+import { useSecurity } from "@/context/SecurityContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import { pwnedCount } from "@/utils/breach";
 import {
   generatePassword,
   passwordStrength,
@@ -47,6 +49,7 @@ export default function EntryFormScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const [snackbar, showSnackbar] = useSnackbar();
+  const { breachAlerts } = useSecurity();
 
   const isNew = id === "new";
 
@@ -94,6 +97,29 @@ export default function EntryFormScreen() {
       .catch(() => setError("Failed to load vault."));
   }, [vaultKey, id, isNew]);
 
+  // Times the current password was seen in known breaches (null = unknown /
+  // not checked). Debounced so a half-typed password isn't looked up.
+  const [breachCount, setBreachCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!breachAlerts || !password) {
+      setBreachCount(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const count = await pwnedCount(password);
+        if (!cancelled) setBreachCount(count);
+      } catch {
+        if (!cancelled) setBreachCount(null); // offline: show nothing
+      }
+    }, 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [password, breachAlerts]);
+
   if (!vaultKey) {
     return <Redirect href="/" />;
   }
@@ -112,7 +138,7 @@ export default function EntryFormScreen() {
     setTimeout(() => router.back(), 700);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (skipBreachCheck = false) => {
     setError("");
     if (!entries) {
       return;
@@ -122,6 +148,25 @@ export default function EntryFormScreen() {
       setShowInvalid(true);
       showSnackbar("Choose a platform and enter a password");
       return;
+    }
+
+    if (breachAlerts && !skipBreachCheck) {
+      setIsSaving(true);
+      let count = 0;
+      try {
+        count = await pwnedCount(password);
+      } catch {
+        // Offline / service down: never block saving over a failed check.
+      }
+      setIsSaving(false);
+      if (count > 0) {
+        setDialog({
+          title: "Password found in breaches",
+          message: `This password appeared in ${count.toLocaleString()} known data breaches. Attackers try leaked passwords first, so consider choosing a different one.`,
+          options: [{ label: "Save anyway", onPress: () => handleSave(true) }],
+        });
+        return;
+      }
     }
 
     const trimmedUsername = username.trim();
@@ -340,25 +385,58 @@ export default function EntryFormScreen() {
                 </View>
               }
             />
-            <View style={styles.meter}>
-              {[1, 2, 3, 4].map((segment) => (
-                <View
-                  key={segment}
-                  style={[
-                    styles.segment,
-                    {
-                      backgroundColor:
-                        segment <= strength ? strengthColor : colors.subtext,
-                      opacity: segment <= strength ? 1 : 0.3,
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-            {strength > 0 && (
-              <Text style={[styles.strengthLabel, { color: colors.subtext }]}>
-                {STRENGTH_LABELS[strength]}
-              </Text>
+            {showPassword && (
+              <>
+                <View style={styles.meter}>
+                  {[1, 2, 3, 4].map((segment) => (
+                    <View
+                      key={segment}
+                      style={[
+                        styles.segment,
+                        {
+                          backgroundColor:
+                            segment <= strength
+                              ? strengthColor
+                              : colors.subtext,
+                          opacity: segment <= strength ? 1 : 0.3,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                {strength > 0 && (
+                  <Text
+                    style={[styles.strengthLabel, { color: colors.subtext }]}
+                  >
+                    {STRENGTH_LABELS[strength]}
+                  </Text>
+                )}
+              </>
+            )}
+            {!!breachCount && (
+              <View
+                accessibilityRole="alert"
+                style={[
+                  styles.breachAlert,
+                  {
+                    borderColor: colors.error,
+                    backgroundColor: colors.error + "22",
+                  },
+                ]}
+              >
+                <Ionicons name="warning" size={20} color={colors.error} />
+                <View style={styles.breachBody}>
+                  <Text style={[styles.breachTitle, { color: colors.error }]}>
+                    Password found in data breaches
+                  </Text>
+                  <Text style={[styles.breachText, { color: colors.text }]}>
+                    This exact password appeared {breachCount.toLocaleString()}{" "}
+                    {breachCount === 1 ? "time" : "times"} in leaked databases
+                    that attackers use to break into accounts. Anyone using it
+                    anywhere is at risk. Change it here and on {platform || "the site"}.
+                  </Text>
+                </View>
+              </View>
             )}
           </View>
 
@@ -385,7 +463,7 @@ export default function EntryFormScreen() {
             label={
               isSaving ? "Saving..." : isNew ? "Save entry" : "Save changes"
             }
-            onPress={handleSave}
+            onPress={() => handleSave()}
             disabled={busy}
           />
           {!isNew && (
@@ -518,6 +596,27 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  breachAlert: {
+    flexDirection: "row",
+    gap: 10,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS,
+    padding: 12,
+    marginTop: 12,
+  },
+  breachBody: {
+    flex: 1,
+    gap: 2,
+  },
+  breachTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  breachText: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   actions: {
     gap: 10,

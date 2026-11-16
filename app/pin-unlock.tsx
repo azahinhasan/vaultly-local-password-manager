@@ -1,5 +1,5 @@
-import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { PinBoxInput } from "@/components/PinBoxInput";
+import { BORDER_WIDTH } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
@@ -123,18 +123,21 @@ export default function PinUnlockScreen() {
           shakeSignal={shakeSignal}
           header={
             <>
-              <NeoBrutalCard
-                radius={18}
-                offset={4}
-                backgroundColor={colors.highlight}
-                style={styles.badge}
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: colors.highlight,
+                    borderColor: colors.border,
+                  },
+                ]}
               >
                 <Ionicons
                   name="lock-closed"
                   size={28}
                   color={colors.highlightText}
                 />
-              </NeoBrutalCard>
+              </View>
               <Text style={[styles.title, { color: colors.text }]}>
                 Enter your PIN
               </Text>
@@ -178,6 +181,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   badge: {
+    borderWidth: BORDER_WIDTH,
+    borderRadius: 18,
     width: 64,
     height: 64,
     alignItems: "center",
