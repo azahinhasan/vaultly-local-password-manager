@@ -7,6 +7,7 @@ import {
   utf8ToBytes,
 } from "@noble/ciphers/utils.js";
 import * as Crypto from "expo-crypto";
+import { syncSelfDestructRegistry } from "./self-destruct-registry";
 
 export interface VaultEntry {
   id: string;
@@ -14,6 +15,12 @@ export interface VaultEntry {
   /** Both are optional. */
   username?: string;
   email?: string;
+  /** Needs a manual PIN before the entry can be revealed, copied, opened or autofilled. */
+  requirePin?: boolean;
+  /** Opt-in: silently delete this entry after this many wrong PIN entries (1-99). */
+  deleteAfterWrong?: number;
+  /** Optional PIN for just this entry (salted hash), used instead of the main PIN. */
+  customPin?: { salt: string; hash: string };
   /** Some sites log in with a phone number instead of (or as well as) a username/email. */
   phone?: string;
   password: string;
@@ -74,6 +81,7 @@ export async function saveEncryptedVault(
 ): Promise<void> {
   const encrypted = await encryptVault(vault, key);
   await AsyncStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(encrypted));
+  await syncSelfDestructRegistry(vault);
 }
 
 export async function loadEncryptedVault(

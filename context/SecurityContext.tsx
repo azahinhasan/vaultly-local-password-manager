@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenCapture from "expo-screen-capture";
+import { PIN_EVERY_KEY } from "../utils/biometric";
+import { DEFAULT_PIN_EVERY_HOURS, isPinEveryHours } from "../utils/pin-policy";
 import {
   createContext,
   ReactNode,
@@ -23,6 +25,9 @@ const BREACH_KEY = "breachAlerts";
 
 interface SecurityContextType {
   autoLock: AutoLock;
+  /** Hours after a manual PIN entry during which biometric unlock is allowed. */
+  pinEveryHours: number;
+  setPinEveryHours: (hours: number) => void;
   setAutoLock: (v: AutoLock) => void;
   hideInSwitcher: boolean;
   setHideInSwitcher: (v: boolean) => void;
@@ -37,11 +42,13 @@ const SecurityContext = createContext<SecurityContextType | undefined>(
 
 export function SecurityProvider({ children }: { children: ReactNode }) {
   const [autoLock, setAutoLockState] = useState<AutoLock>("1min");
+  const [pinEveryHours, setPinEveryState] = useState(DEFAULT_PIN_EVERY_HOURS);
   const [hideInSwitcher, setHideState] = useState(true);
   const [breachAlerts, setBreachState] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY, BREACH_KEY]).then(([lock, hide, breach]) => {
+    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY, BREACH_KEY, PIN_EVERY_KEY]).then(([lock, hide, breach, pinEvery]) => {
+      if (isPinEveryHours(Number(pinEvery[1]))) setPinEveryState(Number(pinEvery[1]));
       setBreachState(breach[1] === "true");
       if (AUTO_LOCK_OPTIONS.some((o) => o.value === lock[1])) {
         setAutoLockState(lock[1] as AutoLock);
@@ -69,6 +76,10 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(HIDE_KEY, String(v));
   };
 
+  const setPinEveryHours = (hours: number) => {
+    setPinEveryState(hours);
+    AsyncStorage.setItem(PIN_EVERY_KEY, String(hours));
+  };
   const setBreachAlerts = (v: boolean) => {
     setBreachState(v);
     AsyncStorage.setItem(BREACH_KEY, String(v));
@@ -79,6 +90,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
       value={{
         autoLock,
         setAutoLock,
+        pinEveryHours,
+        setPinEveryHours,
         hideInSwitcher,
         setHideInSwitcher,
         breachAlerts,

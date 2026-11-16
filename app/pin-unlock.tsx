@@ -1,7 +1,11 @@
 import { PinBoxInput } from "@/components/PinBoxInput";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
-import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
+import {
+  isBiometricAllowed,
+  isBiometricAvailable,
+  isBiometricEnabled,
+} from "@/utils/biometric";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -34,6 +38,7 @@ export default function PinUnlockScreen() {
   );
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [hasBiometric, setHasBiometric] = useState(false);
+  const [pinNote, setPinNote] = useState("");
   const [shakeSignal, setShakeSignal] = useState(0);
 
   useEffect(() => {
@@ -67,8 +72,14 @@ export default function PinUnlockScreen() {
     (async () => {
       const enabled =
         (await isBiometricEnabled()) && (await isBiometricAvailable());
-      setHasBiometric(enabled);
-      if (enabled) tryBiometric();
+      if (!enabled) return;
+      // Biometrics are only allowed for a while after the last manual PIN entry.
+      if (!(await isBiometricAllowed())) {
+        setPinNote("For your security, enter your PIN. Biometric unlock resumes after it.");
+        return;
+      }
+      setHasBiometric(true);
+      tryBiometric();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -151,6 +162,11 @@ export default function PinUnlockScreen() {
                   </Text>
                 )
               )}
+              {!isLocked && !error && !!pinNote && (
+                <Text style={[styles.note, { color: colors.subtext }]}>
+                  {pinNote}
+                </Text>
+              )}
             </>
           }
         />
@@ -182,6 +198,12 @@ const styles = StyleSheet.create({
   },
   spinner: {
     marginTop: 8,
+  },
+  note: {
+    marginTop: 12,
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
   },
   error: {
     marginTop: 12,

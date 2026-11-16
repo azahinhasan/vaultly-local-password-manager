@@ -6,6 +6,8 @@ import { KeyboardScroll } from "@/components/KeyboardScroll";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
 import { OTHER_CATEGORY, PLATFORM_TARGETS } from "@/constants/platforms";
 import { useAuth } from "@/context/AuthContext";
+import { usePinGate } from "@/hooks/use-pin-gate";
+import { verifyEntryPin } from "@/utils/entry-pin";
 import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { cancelAutofill } from "@/modules/vaultly-autofill";
@@ -49,7 +51,8 @@ export function SaveLogin({
   usernameKind: FieldKind | null;
   password: string;
 }) {
-  const { vaultKey } = useAuth();
+  const { vaultKey, verifyCurrentPin } = useAuth();
+  const [pinDialog, askPin] = usePinGate();
   const { platforms, addPlatform, markPlatformUsed } = usePlatforms();
   const colors = useThemeColors();
   const [snackbar, showSnackbar] = useSnackbar();
@@ -87,6 +90,18 @@ export function SaveLogin({
     const typedName = platform.trim();
     if (!existing && !typedName) {
       setError("Enter a platform name.");
+      return;
+    }
+
+    // Changing the password of a protected login needs its PIN.
+    if (
+      existing?.requirePin &&
+      !(await askPin({
+        title: "PIN required",
+        message: existing.customPin ? "Enter the PIN for this login." : "Enter your PIN to update this login.",
+        verify: (pin) => verifyEntryPin(existing, pin, verifyCurrentPin, vaultKey),
+      }))
+    ) {
       return;
     }
 
@@ -264,6 +279,7 @@ export function SaveLogin({
       </View>
 
       {snackbar}
+      {pinDialog}
     </SafeAreaView>
   );
 }

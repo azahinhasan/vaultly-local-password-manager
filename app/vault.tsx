@@ -10,8 +10,11 @@ import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { usePlatforms } from "@/context/PlatformsContext";
 import { useSecurity } from "@/context/SecurityContext";
+import { usePinGate } from "@/hooks/use-pin-gate";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { pwnedCount } from "@/utils/breach";
+import { verifyEntryPin } from "@/utils/entry-pin";
+import { subscribeEntriesDeleted } from "@/utils/self-destruct";
 import { filterEntries, usedCategories } from "@/utils/vault-filter";
 import { loadEncryptedVault, VaultEntry } from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,7 +39,8 @@ const CLIPBOARD_CLEAR_MS = 30_000;
 let clipboardTimer: ReturnType<typeof setTimeout> | undefined;
 
 export default function VaultScreen() {
-  const { vaultKey, lock } = useAuth();
+  const { vaultKey, lock, verifyCurrentPin } = useAuth();
+  const [pinDialog, askPin] = usePinGate();
   const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
@@ -74,6 +78,14 @@ export default function VaultScreen() {
     }, [vaultKey]),
   );
 
+  useEffect(
+    () =>
+      subscribeEntriesDeleted((ids) =>
+        setEntries((prev) => prev?.filter((e) => !ids.includes(e.id)) ?? prev),
+      ),
+    [],
+  );
+
   const categories = useMemo(
     () => usedCategories(entries ?? [], platforms),
     [entries, platforms],
@@ -95,6 +107,7 @@ export default function VaultScreen() {
     let cancelled = false;
     (async () => {
       for (const entry of entries) {
+        if (entry.requirePin) continue;
         try {
           const count = await pwnedCount(entry.password);
           if (cancelled) return;
@@ -113,7 +126,22 @@ export default function VaultScreen() {
     return <Redirect href="/" />;
   }
 
-  const toggleReveal = (id: string) => {
+  // Protected entries ask for their PIN every time they are revealed, copied or opened.
+  const unlockEntry = (entry: VaultEntry): Promise<boolean> =>
+    !entry.requirePin
+      ? Promise.resolve(true)
+      : askPin({
+          title: "PIN required",
+          message: entry.customPin
+            ? "Enter the PIN for this login."
+            : "Enter your PIN to continue.",
+          verify: (pin) =>
+            verifyEntryPin(entry, pin, verifyCurrentPin, vaultKey!),
+        });
+
+  const toggleReveal = async (entry: VaultEntry) => {
+    const id = entry.id;
+    if (!revealed[id] && !(await unlockEntry(entry))) return;
     clearTimeout(revealTimers.current[id]);
     const next = !revealed[id];
     setRevealed((prev) => ({ ...prev, [id]: next }));
@@ -125,7 +153,9 @@ export default function VaultScreen() {
     }
   };
 
-  const copyPassword = async (password: string) => {
+  const copyPassword = async (entry: VaultEntry) => {
+    if (!(await unlockEntry(entry))) return;
+    const password = entry.password;
     await Clipboard.setStringAsync(password);
     showSnackbar("Password copied · clears in 30 s");
     clearTimeout(clipboardTimer);
@@ -137,8 +167,9 @@ export default function VaultScreen() {
     }, CLIPBOARD_CLEAR_MS);
   };
 
-  const openEntry = (id: string) => {
-    router.push({ pathname: "/entry/[id]", params: { id } });
+  const openEntry = async (entry: VaultEntry) => {
+    if (!(await unlockEntry(entry))) return;
+    router.push({ pathname: "/entry/[id]", params: { id: entry.id } });
   };
 
   const count = entries?.length ?? 0;
@@ -229,9 +260,10 @@ export default function VaultScreen() {
               (p) => p.name === item.platform,
             )?.color;
             const isRevealed = !!revealed[item.id];
-            const isBreached = breached.has(item.password);
+            const isProtected = !!item.requirePin;
+            const isBreached = !isProtected && breached.has(item.password);
             return (
-              <NeoBrutalCard onPress={() => openEntry(item.id)}>
+              <NeoBrutalCard onPress={() => openEntry(item)}>
                 <View style={styles.cardInner}>
                   <Monogram
                     name={item.platform}
@@ -246,6 +278,14 @@ export default function VaultScreen() {
                       >
                         {item.platform}
                       </Text>
+                      {isProtected && (
+                        <Ionicons
+                          name="lock-closed"
+                          size={15}
+                          color={colors.subtext}
+                          accessibilityLabel="Protected. PIN required."
+                        />
+                      )}
                       {isBreached && (
                         <Ionicons
                           name="warning"
@@ -260,24 +300,28 @@ export default function VaultScreen() {
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
-                      {item.username || item.email || item.phone || "No username"}
+                      {isProtected
+                        ? "Protected · PIN required"
+                        : item.username || item.email || item.phone || "No username"}
                     </Text>
-                    <Text
-                      style={[styles.password, { color: colors.text }]}
-                      numberOfLines={1}
-                    >
-                      {isRevealed ? item.password : "••••••••••"}
-                    </Text>
+                    {!isProtected && (
+                      <Text
+                        style={[styles.password, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {isRevealed ? item.password : "••••••••••"}
+                      </Text>
+                    )}
                   </View>
                   <BrutalIconButton
                     icon={isRevealed ? "eye-off-outline" : "eye-outline"}
                     label={isRevealed ? "Hide password" : "Show password"}
-                    onPress={() => toggleReveal(item.id)}
+                    onPress={() => toggleReveal(item)}
                   />
                   <BrutalIconButton
                     icon="copy-outline"
                     label="Copy password"
-                    onPress={() => copyPassword(item.password)}
+                    onPress={() => copyPassword(item)}
                   />
                 </View>
               </NeoBrutalCard>
@@ -303,6 +347,7 @@ export default function VaultScreen() {
       </View>
 
       {snackbar}
+      {pinDialog}
     </SafeAreaView>
   );
 }

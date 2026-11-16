@@ -168,3 +168,51 @@ test("phone as a login identifier", () => {
   const a = { id: "1", platform: "X", password: "p", phone: "+88017" };
   assert.equal(filterEntries([a], "8801", null, DEFAULT_PLATFORMS).length, 1);
 });
+
+import { isPinRecent } from "./pin-policy.ts";
+
+test("PIN interval policy", () => {
+  const H = 3_600_000, now = 1_000_000 * H;
+  assert.equal(isPinRecent(now - 23 * H, 24, now), true);
+  assert.equal(isPinRecent(now - 24 * H, 24, now), false); // exactly at the limit = expired
+  assert.equal(isPinRecent(now - 47 * H, 48, now), true);
+  assert.equal(isPinRecent(now - 73 * H, 72, now), false);
+  assert.equal(isPinRecent(null, 72, now), false); // never entered / pre-feature data
+  assert.equal(isPinRecent(now + H, 24, now), false); // clock set back
+  assert.equal(isPinRecent(NaN, 24, now), false);
+});
+
+test("protected entries only match search by platform", () => {
+  const e = [
+    { platform: "MyBank", username: "secretuser", requirePin: true },
+    { platform: "Other", username: "secretuser" },
+  ];
+  assert.equal(filterEntries(e, "secretuser", null, DEFAULT_PLATFORMS).length, 1); // only the unprotected one
+  assert.equal(filterEntries(e, "mybank", null, DEFAULT_PLATFORMS).length, 1); // by platform still works
+});
+
+import { buildRegistry, isValidLimit, mainPinVictims } from "./self-destruct-policy.ts";
+
+test("self-destruct policy", () => {
+  assert.equal(isValidLimit(1), true);
+  assert.equal(isValidLimit(99), true);
+  assert.equal(isValidLimit(0), false);
+  assert.equal(isValidLimit(100), false);
+  assert.equal(isValidLimit(2.5), false);
+  assert.equal(isValidLimit(NaN), false);
+
+  const reg = buildRegistry([
+    { id: "a", deleteAfterWrong: 3 },
+    { id: "b", deleteAfterWrong: 5, customPin: { salt: "s", hash: "h" } },
+    { id: "c" }, // not opted in
+    { id: "d", deleteAfterWrong: 0 }, // invalid limit is ignored
+  ]);
+  assert.deepEqual(Object.keys(reg).sort(), ["a", "b"]);
+  assert.equal(reg.b.hasCustomPin, true);
+  // consecutive wrong main PINs: only entries whose limit is reached go
+  assert.deepEqual(mainPinVictims(reg, 2), []);
+  assert.deepEqual(mainPinVictims(reg, 3), ["a"]);
+  assert.deepEqual(mainPinVictims(reg, 5).sort(), ["a", "b"]);
+  // the registry holds no secrets: just ids and numbers
+  assert.ok(!JSON.stringify(reg).includes("hash"));
+});

@@ -10,7 +10,9 @@ import { BORDER_WIDTH, THEME_OPTIONS } from "@/constants/theme";
 import { AUTO_LOCK_OPTIONS, useSecurity } from "@/context/SecurityContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { usePinGate } from "@/hooks/use-pin-gate";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import { PIN_EVERY_OPTIONS } from "@/utils/pin-policy";
 import {
   exportVaultDecrypted,
   exportVaultEncrypted,
@@ -60,6 +62,8 @@ export default function SettingsScreen() {
     setAutoLock,
     hideInSwitcher,
     setHideInSwitcher,
+    pinEveryHours,
+    setPinEveryHours,
     breachAlerts,
     setBreachAlerts,
   } = useSecurity();
@@ -90,6 +94,7 @@ export default function SettingsScreen() {
     });
     return () => sub.remove();
   }, []);
+  const [pinDialog, askPin] = usePinGate();
   const [erasePinOpen, setErasePinOpen] = useState(false);
   const [erasePinError, setErasePinError] = useState("");
 
@@ -167,6 +172,18 @@ export default function SettingsScreen() {
     }
   };
 
+  // The PIN is asked every single time, even right after a fingerprint unlock.
+  const confirmThenExport = async (isEncrypted: boolean) => {
+    const ok = await askPin({
+      title: "Enter your PIN to export",
+      message: isEncrypted
+        ? "Confirm it's you before exporting an encrypted backup."
+        : "Confirm it's you before exporting your passwords in plain text.",
+      verify: verifyCurrentPin,
+    });
+    if (ok) await runExport(isEncrypted);
+  };
+
   const handleExport = () => {
     setDialog({
       title: "Export Vault",
@@ -175,8 +192,8 @@ export default function SettingsScreen() {
       highlightNote:
         "Encrypted exports stay protected, but you'll need to enter the PIN you used to export it when you import this file later — remember that PIN, since there's no way to recover it otherwise.",
       options: [
-        { label: "Decrypted", onPress: () => runExport(false) },
-        { label: "Encrypted", onPress: () => runExport(true) },
+        { label: "Decrypted", onPress: () => confirmThenExport(false) },
+        { label: "Encrypted", onPress: () => confirmThenExport(true) },
       ],
     });
   };
@@ -431,6 +448,17 @@ export default function SettingsScreen() {
     }
   };
 
+  const choosePinEvery = () =>
+    setDialog({
+      title: "Require PIN every",
+      message:
+        "Biometric unlock works for this long after you last typed your PIN. After that, the PIN is needed once.",
+      options: PIN_EVERY_OPTIONS.map((o) => ({
+        label: o.label + (o.hours === pinEveryHours ? "  ✓" : ""),
+        onPress: () => setPinEveryHours(o.hours),
+      })),
+    });
+
   const chooseAutoLock = () =>
     setDialog({
       title: "Auto-lock",
@@ -548,6 +576,15 @@ export default function SettingsScreen() {
             />,
           )}
           {row(
+            "keypad-outline",
+            "Require PIN every",
+            choosePinEvery,
+            <Text style={[styles.value, { color: colors.subtext }]}>
+              {pinEveryHours} h
+            </Text>,
+            "Then biometric unlock needs the PIN once",
+          )}
+          {row(
             "time-outline",
             "Auto-lock",
             chooseAutoLock,
@@ -632,6 +669,8 @@ export default function SettingsScreen() {
           Everything stays on this device
         </Text>
       </ScrollView>
+
+      {pinDialog}
 
       <AppDialog
         visible={dialog !== null}

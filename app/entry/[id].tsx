@@ -3,10 +3,12 @@ import {
   BrutalIconButton,
   BrutalTextField,
   Monogram,
+  ToggleSwitch,
   useSnackbar,
 } from "@/components/Brutal";
 import { KeyboardScroll } from "@/components/KeyboardScroll";
 import { NeoBrutalButton } from "@/components/NeoBrutalButton";
+import { PinPromptDialog } from "@/components/PinPromptDialog";
 import { PlatformSheet } from "@/components/PlatformSheet";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
@@ -14,6 +16,9 @@ import { usePlatforms } from "@/context/PlatformsContext";
 import { useSecurity } from "@/context/SecurityContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { pwnedCount } from "@/utils/breach";
+import { makeEntryPin } from "@/utils/entry-pin";
+import { onCustomPinOk } from "@/utils/self-destruct";
+import { isValidLimit } from "@/utils/self-destruct-policy";
 import {
   generatePassword,
   passwordStrength,
@@ -62,6 +67,15 @@ export default function EntryFormScreen() {
   const [website, setWebsite] = useState("");
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
+  // Protection: needs a PIN to view/use this entry (optionally its own PIN).
+  const [requirePin, setRequirePin] = useState(false);
+  const [customPin, setCustomPin] = useState<{ salt: string; hash: string } | null>(null);
+  // Self-destruct: delete this entry after N wrong PIN entries (silent).
+  const [selfDestruct, setSelfDestruct] = useState(false);
+  const [destructLimit, setDestructLimit] = useState("5");
+  const [pinStage, setPinStage] = useState<"set" | "confirm" | null>(null);
+  const [pendingPin, setPendingPin] = useState("");
+  const [pinError, setPinError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showInvalid, setShowInvalid] = useState(false);
@@ -93,6 +107,12 @@ export default function EntryFormScreen() {
             setWebsite(existing.website ?? "");
             setPassword(existing.password);
             setNotes(existing.notes ?? "");
+            setRequirePin(!!existing.requirePin);
+            setCustomPin(existing.customPin ?? null);
+            if (existing.deleteAfterWrong) {
+              setSelfDestruct(true);
+              setDestructLimit(String(existing.deleteAfterWrong));
+            }
           } else {
             setNotFound(true);
           }
@@ -128,6 +148,27 @@ export default function EntryFormScreen() {
     return <Redirect href="/" />;
   }
 
+  const closePinFlow = () => {
+    setPinStage(null);
+    setPendingPin("");
+    setPinError("");
+  };
+
+  const handlePinStep = (pin: string) => {
+    if (pinStage === "set") {
+      setPendingPin(pin);
+      setPinError("");
+      setPinStage("confirm");
+    } else if (pin === pendingPin) {
+      setCustomPin(makeEntryPin(pin));
+      closePinFlow();
+    } else {
+      setPendingPin("");
+      setPinStage("set");
+      setPinError("PINs didn't match. Enter the new PIN again.");
+    }
+  };
+
   const strength = passwordStrength(password);
   const strengthColor = [
     colors.border,
@@ -151,6 +192,13 @@ export default function EntryFormScreen() {
     if (!platform || !password) {
       setShowInvalid(true);
       showSnackbar("Choose a platform and enter a password");
+      return;
+    }
+
+    const wrongLimit = selfDestruct ? Number(destructLimit) : undefined;
+    if (selfDestruct && !isValidLimit(wrongLimit as number)) {
+      setShowInvalid(true);
+      showSnackbar("Enter how many wrong PINs before deleting (1 to 99)");
       return;
     }
 
@@ -190,6 +238,9 @@ export default function EntryFormScreen() {
             ...(trimmedWebsite ? { website: trimmedWebsite } : {}),
             password,
             ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+            ...(requirePin ? { requirePin: true } : {}),
+            ...(requirePin && customPin ? { customPin } : {}),
+            ...(wrongLimit ? { deleteAfterWrong: wrongLimit } : {}),
           },
         ]
       : entries.map((entry) =>
@@ -203,6 +254,9 @@ export default function EntryFormScreen() {
                 website: trimmedWebsite || undefined,
                 password,
                 notes: trimmedNotes || undefined,
+                requirePin: requirePin || undefined,
+                customPin: requirePin ? (customPin ?? undefined) : undefined,
+                deleteAfterWrong: wrongLimit,
               }
             : entry,
         );
@@ -210,6 +264,7 @@ export default function EntryFormScreen() {
     setIsSaving(true);
     try {
       await saveEncryptedVault(updated, vaultKey);
+      if (!isNew) await onCustomPinOk(id); // a saved edit starts the wrong-PIN count over
       await markPlatformUsed(platform);
       finish(isNew ? "Saved to your vault" : "Changes saved");
     } catch {
@@ -485,6 +540,107 @@ export default function EntryFormScreen() {
             />
           </View>
 
+          <View
+            style={[
+              styles.protect,
+              { borderColor: colors.border, backgroundColor: colors.surface },
+            ]}
+          >
+            <View style={styles.protectRow}>
+              <Ionicons name="lock-closed-outline" size={20} color={colors.text} />
+              <View style={styles.protectText}>
+                <Text style={[styles.protectTitle, { color: colors.text }]}>
+                  Require PIN to view or use
+                </Text>
+                <Text style={[styles.protectSub, { color: colors.subtext }]}>
+                  Asks for a PIN to show, copy, open or autofill this login
+                </Text>
+              </View>
+              <ToggleSwitch
+                value={requirePin}
+                onValueChange={(v) => {
+                  setRequirePin(v);
+                  if (!v) setCustomPin(null);
+                }}
+                label="Require PIN to view or use"
+              />
+            </View>
+
+            {requirePin && (
+              <View style={[styles.protectRow, styles.protectPin]}>
+                <Ionicons name="key-outline" size={20} color={colors.text} />
+                <View style={styles.protectText}>
+                  <Text style={[styles.protectTitle, { color: colors.text }]}>
+                    {customPin ? "Separate PIN set" : "Using your main PIN"}
+                  </Text>
+                  <Text style={[styles.protectSub, { color: colors.subtext }]}>
+                    {customPin
+                      ? "Only this PIN opens this login. If you forget it, the login stays locked."
+                      : "Set a different PIN just for this login (optional)"}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setPinStage("set")}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                >
+                  <Text style={[styles.pinLink, { color: colors.accent }]}>
+                    {customPin ? "Change" : "Set PIN"}
+                  </Text>
+                </Pressable>
+                {customPin && (
+                  <Pressable
+                    onPress={() => setCustomPin(null)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.pinLink, { color: colors.error }]}>Remove</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            <View style={[styles.protectRow, styles.protectPin]}>
+              <Ionicons name="trash-outline" size={20} color={colors.text} />
+              <View style={styles.protectText}>
+                <Text style={[styles.protectTitle, { color: colors.text }]}>
+                  Delete after wrong PINs
+                </Text>
+                <Text style={[styles.protectSub, { color: colors.subtext }]}>
+                  Silently deletes this login with no warning. Counts wrong
+                  entries of your main PIN and, if set, this login's own PIN.
+                </Text>
+              </View>
+              <ToggleSwitch
+                value={selfDestruct}
+                onValueChange={setSelfDestruct}
+                label="Delete this login after wrong PINs"
+              />
+            </View>
+
+            {selfDestruct && (
+              <View>
+                <Text style={[styles.protectTitle, { color: colors.text }]}>
+                  Wrong PINs before it is deleted
+                </Text>
+                <BrutalTextField
+                  value={destructLimit}
+                  onChangeText={(t) => setDestructLimit(t.replace(/[^0-9]/g, "").slice(0, 2))}
+                  placeholder="5"
+                  keyboardType="number-pad"
+                  invalid={showInvalid && !isValidLimit(Number(destructLimit))}
+                  accessibilityLabel="Wrong PINs before this login is deleted"
+                  containerStyle={styles.limitField}
+                />
+                {Number(destructLimit) > 0 && Number(destructLimit) <= 2 && (
+                  <Text style={[styles.protectSub, { color: colors.error }]}>
+                    Careful: a typo could delete this login.
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
           {!!error && (
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
           )}
@@ -515,6 +671,19 @@ export default function EntryFormScreen() {
           )}
         </View>
       </KeyboardAvoidingView>
+
+      <PinPromptDialog
+        visible={pinStage !== null}
+        title={pinStage === "confirm" ? "Confirm PIN" : "Set a PIN for this login"}
+        message={
+          pinStage === "confirm"
+            ? "Enter the same PIN again."
+            : "Used instead of your main PIN to view or use this login."
+        }
+        error={pinError}
+        onSubmit={handlePinStep}
+        onCancel={closePinFlow}
+      />
 
       <PlatformSheet
         visible={sheetOpen}
@@ -649,6 +818,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
+  },
+  protect: {
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS,
+    padding: 14,
+    gap: 12,
+  },
+  protectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  protectPin: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(128,128,128,0.35)",
+  },
+  protectText: {
+    flex: 1,
+    gap: 2,
+  },
+  protectTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  protectSub: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  limitField: {
+    marginTop: 6,
+  },
+  pinLink: {
+    fontSize: 13,
+    fontWeight: "800",
   },
   actions: {
     gap: 10,

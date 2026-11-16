@@ -6,6 +6,7 @@ interface Searchable {
   email?: string;
   website?: string;
   phone?: string;
+  requirePin?: boolean;
 }
 
 export function categoryOf(
@@ -28,10 +29,12 @@ export function filterEntries<T extends Searchable>(
       (!category || categoryOf(e.platform, platforms) === category) &&
       (!q ||
         e.platform.toLowerCase().includes(q) ||
-        (e.username ?? "").toLowerCase().includes(q) ||
-        (e.email ?? "").toLowerCase().includes(q) ||
-        (e.website ?? "").toLowerCase().includes(q) ||
-        (e.phone ?? "").toLowerCase().includes(q)),
+        // Protected entries: platform only, so searching can't reveal their details.
+        (!e.requirePin &&
+          ((e.username ?? "").toLowerCase().includes(q) ||
+            (e.email ?? "").toLowerCase().includes(q) ||
+            (e.website ?? "").toLowerCase().includes(q) ||
+            (e.phone ?? "").toLowerCase().includes(q)))),
   );
 }
 

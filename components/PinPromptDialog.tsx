@@ -53,6 +53,7 @@ export function PinPromptDialog({
       await onSubmit(value);
     } finally {
       setIsSubmitting(false);
+      setPin("");
     }
   };
 

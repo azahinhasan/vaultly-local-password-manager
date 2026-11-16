@@ -7,9 +7,12 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { PlatformsProvider, usePlatforms } from "@/context/PlatformsContext";
 import { SecurityProvider } from "@/context/SecurityContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { usePinGate } from "@/hooks/use-pin-gate";
 import { useThemeColors } from "@/hooks/use-theme-colors";
+import { verifyEntryPin } from "@/utils/entry-pin";
+import { subscribeEntriesDeleted } from "@/utils/self-destruct";
 import { FieldKind, FillTarget, pickIdentifier, rankForTarget } from "@/utils/autofill-match";
-import { isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
+import { isBiometricAllowed, isBiometricAvailable, isBiometricEnabled } from "@/utils/biometric";
 import { filterEntries, usedCategories } from "@/utils/vault-filter";
 import { loadEncryptedVault, VaultEntry } from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -101,6 +104,7 @@ function Unlock({ target, saving }: { target: FillTarget; saving: boolean }) {
   const [checking, setChecking] = useState(false);
   const [shake, setShake] = useState(0);
   const [hasBiometric, setHasBiometric] = useState(false);
+  const [pinNote, setPinNote] = useState("");
   const locked = !!lockedUntil && lockedUntil > Date.now();
 
   const tryBiometric = async () => {
@@ -110,8 +114,13 @@ function Unlock({ target, saving }: { target: FillTarget; saving: boolean }) {
   useEffect(() => {
     (async () => {
       const on = (await isBiometricEnabled()) && (await isBiometricAvailable());
-      setHasBiometric(on);
-      if (on) tryBiometric();
+      if (!on) return;
+      if (!(await isBiometricAllowed())) {
+        setPinNote("For your security, enter your PIN. Biometric unlock resumes after it.");
+        return;
+      }
+      setHasBiometric(true);
+      tryBiometric();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -159,6 +168,7 @@ function Unlock({ target, saving }: { target: FillTarget; saving: boolean }) {
           <>
             {checking && <ActivityIndicator color={colors.accent} />}
             {!!error && <Text style={[styles.error, { color: colors.error }]}>{error}</Text>}
+            {!error && !!pinNote && <Text style={[styles.subtitle, { color: colors.subtext }]}>{pinNote}</Text>}
           </>
         }
       />
@@ -171,7 +181,8 @@ type Row =
   | { kind: "entry"; key: string; entry: VaultEntry };
 
 function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | null }) {
-  const { vaultKey } = useAuth();
+  const { vaultKey, verifyCurrentPin } = useAuth();
+  const [pinDialog, askPin] = usePinGate();
   const { platforms } = usePlatforms();
   const colors = useThemeColors();
   const [entries, setEntries] = useState<VaultEntry[] | null>(null);
@@ -183,6 +194,14 @@ function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | nul
     if (!vaultKey) return;
     loadEncryptedVault(vaultKey).then(setEntries).catch(() => setFailed(true));
   }, [vaultKey]);
+
+  useEffect(
+    () =>
+      subscribeEntriesDeleted((ids) =>
+        setEntries((prev) => prev?.filter((e) => !ids.includes(e.id)) ?? prev),
+      ),
+    [],
+  );
 
   const categories = useMemo(
     () => usedCategories(entries ?? [], platforms),
@@ -229,11 +248,26 @@ function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | nul
     }
     const { entry } = item;
     const color = platforms.find((p) => p.name === entry.platform)?.color;
+    const isProtected = !!entry.requirePin;
     const identifier = pickIdentifier(entry, kind);
-    const login = identifier || "No username";
+    const login = isProtected ? "Protected · PIN required" : identifier || "No username";
+    // Protected entries need their own PIN (or the main PIN) every time before filling.
+    const fill = async () => {
+      if (
+        isProtected &&
+        !(await askPin({
+          title: "PIN required",
+          message: entry.customPin ? "Enter the PIN for this login." : "Enter your PIN to fill this login.",
+          verify: (pin) => verifyEntryPin(entry, pin, verifyCurrentPin, vaultKey!),
+        }))
+      ) {
+        return;
+      }
+      finishWithCredentials(identifier, entry.password);
+    };
     return (
       <NeoBrutalCard
-        onPress={() => finishWithCredentials(identifier, entry.password)}
+        onPress={fill}
         accessibilityLabel={`Fill ${entry.platform}, ${login}`}
       >
         <View style={styles.row}>
@@ -243,7 +277,7 @@ function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | nul
               {entry.platform}
             </Text>
             <Text style={[styles.rowSub, { color: colors.subtext }]} numberOfLines={1}>
-              {login}
+              {isProtected ? "🔒 " : ""}{login}
             </Text>
           </View>
         </View>
@@ -299,6 +333,7 @@ function PickLogin({ target, kind }: { target: FillTarget; kind: FieldKind | nul
           </Text>
         }
       />
+      {pinDialog}
     </SafeAreaView>
   );
 }

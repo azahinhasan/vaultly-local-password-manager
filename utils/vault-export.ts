@@ -1,3 +1,4 @@
+import { isValidLimit } from "./self-destruct-policy";
 import * as Crypto from "expo-crypto";
 import { File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
@@ -22,6 +23,14 @@ function isValidEntryShape(value: unknown): value is VaultEntry {
     (entry.username === undefined || typeof entry.username === "string") &&
     (entry.email === undefined || typeof entry.email === "string") &&
     (entry.phone === undefined || typeof entry.phone === "string") &&
+    (entry.requirePin === undefined || typeof entry.requirePin === "boolean") &&
+    (entry.deleteAfterWrong === undefined ||
+      (typeof entry.deleteAfterWrong === "number" && isValidLimit(entry.deleteAfterWrong))) &&
+    (entry.customPin === undefined ||
+      (typeof entry.customPin === "object" &&
+        entry.customPin !== null &&
+        typeof (entry.customPin as Record<string, unknown>).salt === "string" &&
+        typeof (entry.customPin as Record<string, unknown>).hash === "string")) &&
     (entry.notes === undefined || typeof entry.notes === "string") &&
     (entry.website === undefined || typeof entry.website === "string") &&
     (entry.color === undefined || typeof entry.color === "string")
