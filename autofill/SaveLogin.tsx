@@ -11,6 +11,7 @@ import { verifyEntryPin } from "@/utils/entry-pin";
 import { usePlatforms } from "@/context/PlatformsContext";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { cancelAutofill } from "@/modules/vaultly-autofill";
+import { getReviewBeforeSaving } from "@/utils/autofill-settings";
 import {
   FillTarget,
   classifyIdentifier,
@@ -25,7 +26,7 @@ import {
 } from "@/utils/vault-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -67,6 +68,12 @@ export function SaveLogin({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [auto, setAuto] = useState<boolean | null>(null);
+  const autoRan = useRef(false);
+
+  useEffect(() => {
+    getReviewBeforeSaving().then((review) => setAuto(!review));
+  }, []);
 
   useEffect(() => {
     if (!vaultKey) return;
@@ -85,12 +92,12 @@ export function SaveLogin({
   const unchanged = !!existing && existing.password === password;
   const site = target.webDomain || target.packageName || "";
 
-  const save = async () => {
-    if (!vaultKey || !entries) return;
+  const save = async (): Promise<boolean> => {
+    if (!vaultKey || !entries) return false;
     const typedName = platform.trim();
     if (!existing && !typedName) {
       setError("Enter a platform name.");
-      return;
+      return false;
     }
 
     // Changing the password of a protected login needs its PIN.
@@ -102,7 +109,7 @@ export function SaveLogin({
         verify: (pin) => verifyEntryPin(existing, pin, verifyCurrentPin, vaultKey),
       }))
     ) {
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -131,7 +138,7 @@ export function SaveLogin({
           if (!added.success) {
             setError(added.error ?? "Couldn't add that platform.");
             setSaving(false);
-            return;
+            return false;
           }
         }
         const u = username.trim();
@@ -156,16 +163,44 @@ export function SaveLogin({
       await saveEncryptedVault(updated, vaultKey);
       showSnackbar(existing ? "Changes saved" : "Saved to your vault");
       setTimeout(cancelAutofill, 700);
+      return true;
     } catch {
       setError("Couldn't save. Try again.");
       setSaving(false);
+      return false;
     }
   };
 
-  if (!entries && !error) {
+  // Default path: the unlock was the confirmation, so save straight away. Anything
+  // that needs the user (a name to enter, an error, a cancelled PIN) shows the form.
+  useEffect(() => {
+    if (auto !== true || autoRan.current) return;
+    if (error) {
+      setAuto(false);
+      return;
+    }
+    if (!entries) return;
+    autoRan.current = true;
+    if (unchanged) {
+      showSnackbar("Already saved");
+      setTimeout(cancelAutofill, 700);
+      return;
+    }
+    save().then((saved) => {
+      if (!saved) setAuto(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, entries, error]);
+
+  if (auto === null || auto === true || (!entries && !error)) {
     return (
       <SafeAreaView style={[styles.fill, styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.accent} />
+        {auto === true && (
+          <Text style={[styles.subtitle, { color: colors.subtext }]}>Saving to your vault…</Text>
+        )}
+        {snackbar}
+        {pinDialog}
       </SafeAreaView>
     );
   }

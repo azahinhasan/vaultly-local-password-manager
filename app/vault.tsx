@@ -5,6 +5,7 @@ import {
   Monogram,
   useSnackbar,
 } from "@/components/Brutal";
+import { AppDialog, AppDialogOption } from "@/components/AppDialog";
 import { NeoBrutalCard } from "@/components/NeoBrutalCard";
 import { BORDER_WIDTH, RADIUS } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +42,7 @@ let clipboardTimer: ReturnType<typeof setTimeout> | undefined;
 export default function VaultScreen() {
   const { vaultKey, lock, verifyCurrentPin } = useAuth();
   const [pinDialog, askPin] = usePinGate();
+  const [copyEntry, setCopyEntry] = useState<VaultEntry | null>(null);
   const { platforms } = usePlatforms();
   const router = useRouter();
   const colors = useThemeColors();
@@ -153,9 +155,8 @@ export default function VaultScreen() {
     }
   };
 
-  const copyPassword = async (entry: VaultEntry) => {
-    if (!(await unlockEntry(entry))) return;
-    const password = entry.password;
+  // Passwords are wiped from the clipboard after 30 s; other details stay put.
+  const copyPassword = async (password: string) => {
     await Clipboard.setStringAsync(password);
     showSnackbar("Password copied · clears in 30 s");
     clearTimeout(clipboardTimer);
@@ -166,6 +167,44 @@ export default function VaultScreen() {
       }
     }, CLIPBOARD_CLEAR_MS);
   };
+
+  const copyDetail = async (label: string, value: string) => {
+    await Clipboard.setStringAsync(value);
+    showSnackbar(`${label} copied`);
+  };
+
+  // Copy button: pick what to copy (username / email / phone / password).
+  // With only a password there is nothing to choose, so it copies directly.
+  const startCopy = async (entry: VaultEntry) => {
+    if (!(await unlockEntry(entry))) return;
+    const hasDetails = !!(entry.username || entry.email || entry.phone);
+    if (hasDetails) {
+      setCopyEntry(entry);
+    } else {
+      await copyPassword(entry.password);
+    }
+  };
+
+  const copyOptions: AppDialogOption[] = copyEntry
+    ? [
+        ...(
+          [
+            ["Username", copyEntry.username],
+            ["Email", copyEntry.email],
+            ["Phone", copyEntry.phone],
+          ] as const
+        )
+          .filter(([, value]) => !!value)
+          .map(([label, value]) => ({
+            label: `${label}: ${value}`,
+            onPress: () => copyDetail(label, value!),
+          })),
+        {
+          label: "Password (clears in 30 s)",
+          onPress: () => copyPassword(copyEntry.password),
+        },
+      ]
+    : [];
 
   const openEntry = async (entry: VaultEntry) => {
     if (!(await unlockEntry(entry))) return;
@@ -320,8 +359,8 @@ export default function VaultScreen() {
                   />
                   <BrutalIconButton
                     icon="copy-outline"
-                    label="Copy password"
-                    onPress={() => copyPassword(item)}
+                    label="Copy details or password"
+                    onPress={() => startCopy(item)}
                   />
                 </View>
               </NeoBrutalCard>
@@ -348,6 +387,13 @@ export default function VaultScreen() {
 
       {snackbar}
       {pinDialog}
+      <AppDialog
+        visible={copyEntry !== null}
+        title="Copy to clipboard"
+        message={copyEntry?.platform}
+        options={copyOptions}
+        onDismiss={() => setCopyEntry(null)}
+      />
     </SafeAreaView>
   );
 }

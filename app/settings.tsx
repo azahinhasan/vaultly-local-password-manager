@@ -64,6 +64,8 @@ export default function SettingsScreen() {
     setHideInSwitcher,
     pinEveryHours,
     setPinEveryHours,
+    reviewBeforeSaving,
+    setReviewBeforeSaving,
     breachAlerts,
     setBreachAlerts,
   } = useSecurity();
@@ -612,6 +614,18 @@ export default function SettingsScreen() {
                 {autofillOn ? "On" : "Set up"}
               </Text>,
               "Fill logins in Chrome and other apps",
+            )}
+          {autofillAvailable &&
+            row(
+              "create-outline",
+              "Review before saving",
+              () => setReviewBeforeSaving(!reviewBeforeSaving),
+              <ToggleSwitch
+                value={reviewBeforeSaving}
+                onValueChange={setReviewBeforeSaving}
+                label="Review before saving"
+              />,
+              "Off: saves right after you unlock. On: shows the form first",
             )}
           {row(
             "alert-circle-outline",

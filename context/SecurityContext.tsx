@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ScreenCapture from "expo-screen-capture";
+import { REVIEW_BEFORE_SAVING_KEY } from "../utils/autofill-settings";
 import { PIN_EVERY_KEY } from "../utils/biometric";
 import { DEFAULT_PIN_EVERY_HOURS, isPinEveryHours } from "../utils/pin-policy";
 import {
@@ -25,6 +26,9 @@ const BREACH_KEY = "breachAlerts";
 
 interface SecurityContextType {
   autoLock: AutoLock;
+  /** Show the save form after Android's save popup (off = save right after unlocking). */
+  reviewBeforeSaving: boolean;
+  setReviewBeforeSaving: (v: boolean) => void;
   /** Hours after a manual PIN entry during which biometric unlock is allowed. */
   pinEveryHours: number;
   setPinEveryHours: (hours: number) => void;
@@ -42,12 +46,14 @@ const SecurityContext = createContext<SecurityContextType | undefined>(
 
 export function SecurityProvider({ children }: { children: ReactNode }) {
   const [autoLock, setAutoLockState] = useState<AutoLock>("1min");
+  const [reviewBeforeSaving, setReviewState] = useState(false);
   const [pinEveryHours, setPinEveryState] = useState(DEFAULT_PIN_EVERY_HOURS);
   const [hideInSwitcher, setHideState] = useState(true);
   const [breachAlerts, setBreachState] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY, BREACH_KEY, PIN_EVERY_KEY]).then(([lock, hide, breach, pinEvery]) => {
+    AsyncStorage.multiGet([AUTO_LOCK_KEY, HIDE_KEY, BREACH_KEY, PIN_EVERY_KEY, REVIEW_BEFORE_SAVING_KEY]).then(([lock, hide, breach, pinEvery, review]) => {
+      setReviewState(review[1] === "true");
       if (isPinEveryHours(Number(pinEvery[1]))) setPinEveryState(Number(pinEvery[1]));
       setBreachState(breach[1] === "true");
       if (AUTO_LOCK_OPTIONS.some((o) => o.value === lock[1])) {
@@ -76,6 +82,10 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(HIDE_KEY, String(v));
   };
 
+  const setReviewBeforeSaving = (v: boolean) => {
+    setReviewState(v);
+    AsyncStorage.setItem(REVIEW_BEFORE_SAVING_KEY, String(v));
+  };
   const setPinEveryHours = (hours: number) => {
     setPinEveryState(hours);
     AsyncStorage.setItem(PIN_EVERY_KEY, String(hours));
@@ -90,6 +100,8 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
       value={{
         autoLock,
         setAutoLock,
+        reviewBeforeSaving,
+        setReviewBeforeSaving,
         pinEveryHours,
         setPinEveryHours,
         hideInSwitcher,
